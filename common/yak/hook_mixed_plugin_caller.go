@@ -43,6 +43,8 @@ const (
 
 	// func hijackHTTPRequest(isHttps, url, response, forward/*func(modified []byte)*/, drop /*func()*/)
 	HOOK_HijackHTTPResponse = "hijackHTTPResponse"
+	// func hijackHTTPRequest(isHttps, url, request, response, forward/*func(modified []byte)*/, drop /*func()*/)
+	HOOK_HijackHTTPResponseEx = "hijackHTTPResponseEx"
 
 	// func hijackSaveHTTPFlow(record *httpFlow, forward func(*httpFlow), drop func()) return (*httpFlow)
 	HOOK_hijackSaveHTTPFlow = "hijackSaveHTTPFlow"
@@ -72,6 +74,7 @@ var MITMAndPortScanHooks = []string{
 
 	HOOK_HijackHTTPRequest,
 	HOOK_HijackHTTPResponse,
+	HOOK_HijackHTTPResponseEx,
 	HOOK_hijackSaveHTTPFlow,
 
 	// port-scan
@@ -107,24 +110,24 @@ const nucleiCodeExecTemplate = `
 // 这个脚本需要进行操作，设置 CURRENT_NUCLEI_PLUGIN_NAME 作为变量名
 nucleiPoCName = MITM_PARAMS.CURRENT_NUCLEI_PLUGIN_NAME
 // nucleiPoCName = "[thinkphp-5023-rce]: ThinkPHP 5.0.23 RCE" // MITM_PARAMS.CURRENT_NUCLEI_PLUGIN_NAME
-script, err := db.GetYakitPluginByName(nucleiPoCName)
-if err != nil {
-	yakit.Error("load yakit-plugin(nuclei) failed: %s", err)
-	return
-}
-
-script.LocalPath = str.TrimLeft(script.LocalPath, "/")
-pocName = file.Join(nuclei.GetPoCDir(), script.LocalPath)
-if pocName == "" || (!file.IsExisted(pocName)) {
-	f, err := file.TempFile()
-	if err != nil {
-		yakit.Error("load tempfile to save nuclei poc failed: %s", err)
-		return
-	}
-	pocName = f.Name()
-    f.WriteString(script.Content)
-    f.Close()	
-}
+//script, err := db.GetYakitPluginByName(nucleiPoCName)
+//if err != nil {
+//	yakit.Error("load yakit-plugin(nuclei) failed: %s", err)
+//	return
+//}
+//
+//script.LocalPath = str.TrimLeft(script.LocalPath, "/")
+//pocName = file.Join(nuclei.GetPoCDir(), script.LocalPath)
+//if pocName == "" || (!file.IsExisted(pocName)) {
+//	f, err := file.TempFile()
+//	if err != nil {
+//		yakit.Error("load tempfile to save nuclei poc failed: %s", err)
+//		return
+//	}
+//	pocName = f.Name()
+//    f.WriteString(script.Content)
+//    f.Close()	
+//}
 
 proxy = cli.StringSlice("proxy")
 
@@ -135,7 +138,7 @@ execNuclei = func(target) {
 	yakit.Info("开始执行插件: %s [%v]", nucleiPoCName, target)
     
 	res, err = nuclei.Scan(
-        target, nuclei.templates(pocName),
+        target, nuclei.templates(nucleiPoCName),
         nuclei.retry(0), nuclei.stopAtFirstMatch(true), nuclei.timeout(10), 
         nuclei.proxy(proxy...),
     )
@@ -371,6 +374,17 @@ func (m *MixPluginCaller) CallHijackResponse(
 		HOOK_HijackHTTPResponse,
 		func() interface{} { return isHttps },
 		func() interface{} { return u }, getResponse, reject, drop,
+	)
+}
+
+func (m *MixPluginCaller) CallHijackResponseEx(
+	isHttps bool, u string, getRequest, getResponse,
+	reject, drop func() interface{},
+) {
+	m.callers.CallByNameExSync(
+		HOOK_HijackHTTPResponseEx,
+		func() interface{} { return isHttps },
+		func() interface{} { return u }, getRequest, getResponse, reject, drop,
 	)
 }
 
