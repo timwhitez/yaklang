@@ -65,6 +65,7 @@ func (s *VulinServer) registerLoginRoute() {
 					"username":   u.Username,
 					"id":         u.ID,
 					"age":        u.Age,
+					"role":       u.Role,
 					"updated_at": u.UpdatedAt.String(),
 					"created_at": u.CreatedAt.String(),
 				}
@@ -109,14 +110,14 @@ func (s *VulinServer) registerLoginRoute() {
 			}
 			if len(users) == 0 {
 				writer.WriteHeader(400)
-				writer.Write([]byte("username or password incorrect"))
+				writer.Write([]byte("username incorrect"))
 				return
 			}
 
 			user := users[0]
 			if user.Password != password {
 				writer.WriteHeader(400)
-				writer.Write([]byte("username or password incorrect"))
+				writer.Write([]byte("password incorrect"))
 				return
 			}
 
@@ -126,6 +127,7 @@ func (s *VulinServer) registerLoginRoute() {
 			token.Header["kid"] = user.ID
 			token.Header["username"] = user.Username
 			token.Header["age"] = user.Age
+			token.Header["role"] = user.Role
 
 			k, _ := keyF(token)
 			tokenString, err := token.SignedString(k)
