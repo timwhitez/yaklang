@@ -5,6 +5,7 @@ import (
 	"github.com/yaklang/yaklang/common/log"
 	"github.com/yaklang/yaklang/common/utils"
 	"github.com/yaklang/yaklang/common/utils/bruteutils"
+	"strings"
 )
 
 var BruterExports = map[string]interface{}{
@@ -57,6 +58,11 @@ type yakBruter struct {
 
 	// 完成阈值
 	finishingThreshold int
+
+	//是否做爆破预检
+	beforeCheck bool
+
+	//快速
 }
 
 type yakBruteOpt func(bruter *yakBruter)
@@ -148,6 +154,20 @@ func (y *yakBruter) Start(targets ...string) (chan *bruteutils.BruteItemResult, 
 	)
 	if err != nil {
 		return nil, utils.Errorf("create core bruter[%v] failed: %s", y.bruteType, err.Error())
+	}
+
+	if y.beforeCheck {
+		bruter.BeforeBruteCallback = func(target, wantType string) bool {
+			host, port, _ := utils.ParseStringToHostPort(target)
+			res, err := scanOneFingerprint(host, port)
+			if err != nil {
+				return false
+			}
+			if strings.ToLower(res.Fingerprint.ServiceName) == strings.ToLower(wantType) || res.Fingerprint.ServiceName == "" {
+				return true
+			}
+			return false
+		}
 	}
 
 	ch := make(chan *bruteutils.BruteItemResult, 100)

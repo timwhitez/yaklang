@@ -406,7 +406,7 @@ func TestNewMultiTargetBruteUtilEx_WithBeforeBruteCallback(t *testing.T) {
 		WithFinishingThreshold(10),
 		WithTargetsConcurrent(150),
 		dw,
-		WithBeforeBruteCallback(func(s string) bool {
+		WithBeforeBruteCallback(func(s, a string) bool {
 			return s == "target1"
 		}),
 		WithBruteCallback(func(item *BruteItem) *BruteItemResult {

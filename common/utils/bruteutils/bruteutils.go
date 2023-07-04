@@ -72,7 +72,7 @@ type BruteUtil struct {
 	// 爆破任务的 callbacks
 	callback BruteCallback
 
-	// 每一个执行结束的结果回掉
+	// 每一个执行结束的结果回调
 	resultCallback BruteItemResultCallback
 
 	// 这个选项标志着，如果遇到了 Ok，则停止对当前目标的爆破
@@ -87,8 +87,8 @@ type BruteUtil struct {
 	// OnlyNeedPassword 标志着这次爆破只需要密码进行爆破
 	OnlyNeedPassword bool
 
-	//
-	beforeBruteCallback func(string) bool
+	// 预检查函数
+	BeforeBruteCallback func(string, string) bool
 }
 
 func (b *BruteUtil) SetResultCallback(cb BruteItemResultCallback) {
@@ -270,8 +270,8 @@ func (b *BruteUtil) startProcessingTarget(target string, ctx context.Context) er
 	// 通常包含如下部分：
 	//    1. 检查目标合理性
 	//    2. 检查目标指纹
-	if b.beforeBruteCallback != nil {
-		if !b.beforeBruteCallback(target) {
+	if b.BeforeBruteCallback != nil {
+		if !b.BeforeBruteCallback(target, process.Items[0].Type) {
 			return errors.Errorf("pre-checking target[%s] failed", target)
 		}
 	}
@@ -438,9 +438,9 @@ func WithOnlyNeedPassword(t bool) OptionsAction {
 }
 
 // 设置爆破预检查函数
-func WithBeforeBruteCallback(c func(string) bool) OptionsAction {
+func WithBeforeBruteCallback(c func(string, string) bool) OptionsAction {
 	return func(util *BruteUtil) {
-		util.beforeBruteCallback = c
+		util.BeforeBruteCallback = c
 	}
 }
 
