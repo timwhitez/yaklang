@@ -29,6 +29,25 @@ csrfLog = func(result){
     )
 }
 
+corsLog = func(result){
+    url = result.url
+    reqRaw = result.reqRaw
+    respRaw = result.respRaw
+    msg = "CORS configuration insecure"
+
+    report = {"message": msg, url:url}
+    yakit.Output(report)
+    risk.NewRisk(
+            url,
+            risk.title(sprintf("cors unsafe for: %v", url)),
+            risk.details(report),
+            risk.type("cors"),
+            risk.request(reqRaw),
+            risk.response(respRaw),
+            risk.severity("info"),
+    )
+}
+
 csrf_Detect =  func(url,req,rsp,body,ishttps){
     lowHttpRsp,_,err = poc.HTTPEx(req, [poc.deleteHeader("Cookie"),poc.https(ishttps)]...)
     checkErr(err)
@@ -123,6 +142,11 @@ formCheck = func(url,req,rsp,form){
 mirrorFilteredHTTPFlow = func(ishttps, url, req, rsp, body) {
 
     headers = poc.GetHTTPPacketHeadersFull(rsp)
+    if len(headers["Access-Control-Allow-Origin"]) == 1{
+        if headers["Access-Control-Allow-Origin"][0] == "*"{
+           corsLog(newResult(url,req,rsp))
+        }
+    }
 
     if  len(headers["Content-Type"]) == 0 || !str.Contains(headers["Content-Type"][0],"html"){
         return
