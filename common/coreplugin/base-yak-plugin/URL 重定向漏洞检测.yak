@@ -1,0 +1,210 @@
+newResult = func( url, reqRaw, respRaw, param, payload) {
+    return { "url": url,   "reqRaw": reqRaw, "respRaw": respRaw ,"param" : param, "payload":payload}
+}
+
+//checkErr 检查错误并退出
+checkErr = func(err) {
+    if err != nil {
+        yakit.Output(sprintf("url-redirect-DETECT error: %s", err))
+        os.Exit(1)
+    }
+}
+
+redirectLog = func(result) {
+    url = result.url
+    param = result.param 
+    reqRaw = result.reqRaw  
+    respRaw = result.respRaw
+    payload = result.payload
+    msg = "Found url redirect"
+
+    report = {"message": msg, "param":param}
+    
+    yakit_output(report)
+
+    risk.NewRisk(
+        url,
+        risk.title(sprintf("URL redirect for: %v", url)),
+        risk.details(report),
+        risk.parameter(param),
+        risk.description(`URL重定向漏洞是一种常见的Web安全漏洞，也称为Open Redirect漏洞。它通常发生在Web应用程序中，攻击者可以利用这种漏洞将用户重定向到一个恶意的网站或URL，从而进行钓鱼攻击、诱骗用户下载恶意软件、窃取用户敏感信息、进行社会工程学攻击等。
+
+URL重定向漏洞的原因是Web应用程序没有对用户提供的URL参数进行充分的验证和过滤，导致攻击者可以构造一个恶意的URL，将用户重定向到攻击者控制的网站或URL。攻击者可以在恶意网站上伪造一个与原网站相似的页面，诱骗用户输入敏感信息，如用户名、密码、信用卡号等，或者在网站上植入恶意代码，如下载恶意软件或进行其他攻击行为。`),
+        risk.solution(`输入验证和过滤：Web应用程序应该对输入的URL参数进行验证和过滤，只允许重定向到可信的网站或URL，或者使用白名单机制限制重定向目标。例如，可以验证URL的协议部分是否是http或https，验证主机名是否是可信的域名，验证重定向目标是否在应用程序的域名或子域名下等。
+
+使用短网址服务：使用短网址服务可以避免长URL泄露用户的隐私信息和敏感信息，同时也可以减少URL重定向漏洞的风险。短网址服务可以将长URL转换成短URL，并将短URL映射到原始的URL，用户点击短URL时将会重定向到原始的URL。短网址服务通常会对重定向目标进行验证和过滤，从而减少URL重定向漏洞的风险。
+
+安全编码实践：在开发Web应用程序时，应该时刻保持对安全的关注，并采取适当的安全措施来保护用户的隐私和安全。例如，可以使用安全的编码实践，使用安全的框架和库，定期进行安全审计和漏洞扫描等。`),
+        risk.type("url redirect"),
+        risk.request(reqRaw), 
+        risk.payload(payload),
+        risk.response(respRaw),
+        risk.severity("warning"),
+    )
+    
+}
+
+
+paramNameList = ["redirect","redirect_to","redirect_url","url","jump","jump_to","target","to","link","linkto","domain","Out","Dout","go","return","returnTo","logout","register","login","returnUrl","path","redirectURI","redir","returl","share","wap","src","source","u","display","sourceURl","imageURL","linkurl","RedirectUrl","service","redirect_uri","destUrl","oauth_callback","oauth","goto","redirectUrl","callback","return_url","toUrl","ReturnUrl","fromUrl","redUrl","request"]
+
+paramFilter = func (param){
+    if len(param) == 0 {
+        return param
+    }
+    res = make(map[string]string)
+    //检查可疑的参数名与传入参数值符合url的名字
+    for k,v = range param{
+        if k in paramNameList{
+            res[k] = v
+            continue
+        }
+        if len(re.ExtractURL(v)) > 0 {
+            res[k] = v
+        } 
+    }
+    return res
+}
+
+makeBypassPayload = func(pdomain,ishttps){
+    proto = ""
+    if ishttps{
+        proto = "https://"
+    }else{
+        proto = "http://"
+    }
+    payloads = make([]map[string]string,6)
+    for i in len(payloads){
+        payloads[i] = make(map[string]string)
+    }
+    domain,token,_ = risk.NewDNSLogDomain()
+    payloads[0]["url"] = proto + pdomain + "@" +domain
+    payloads[0]["token"] = token
+
+    domain,token,_ = risk.NewDNSLogDomain()
+    payloads[1]["url"] =  proto + domain + "?" +pdomain
+    payloads[1]["token"] = token
+
+    domain,token,_ = risk.NewDNSLogDomain()
+    payloads[2]["url"] =  proto + pdomain + "." +domain
+    payloads[2]["token"] = token
+
+    domain,token,_ = risk.NewDNSLogDomain()
+    payloads[3]["url"] =  proto + domain + "#" +pdomain
+    payloads[3]["token"] = token
+
+    domain,token,_ = risk.NewDNSLogDomain()
+    payloads[4]["url"] =  proto + domain + "\\" +pdomain
+    payloads[4]["token"] = token
+
+    domain,token,_ = risk.NewDNSLogDomain()
+    payloads[5]["url"] =  proto + domain + "/" +pdomain
+    payloads[5]["token"] = token
+
+    return payloads
+}
+
+
+urlRedirctDetect = func(ishttps, url, req, rsp, postParams, queryParams){
+    flag = make(chan bool)
+    wg = sync.NewWaitGroup()
+    for k,v = range postParams{
+        wg.Add(1)
+        go func(ishttps, url, req, rsp){
+            domain,token,err = risk.NewDNSLogDomain()
+            payload = ""
+            if ishttps {
+                payload = "https://"+domain+"/"
+            }else{
+                payload = "http://"+domain+"/"
+            }
+            yakit.Output(payload)
+            poc.HTTPEx(req, poc.https(ishttps),poc.replacePostParam(k, payload))
+            event,_ =  risk.CheckDNSLogByToken(token)
+            if len(event) > 0 {
+                redirectLog(newResult(url,req,rsp,k+"="+v,k+"="+payload))
+                flag <- true
+            }
+            wg.Done()
+        }(ishttps, url, req, response)
+    }
+
+    for k,v = range queryParams{
+        wg.Add(1)
+        go func(ishttps, url, req, rsp){
+            domain,token,err = risk.NewDNSLogDomain()
+            payload = ""
+            if ishttps {
+                payload = "https://"+domain+"/"
+            }else{
+                payload = "http://"+domain+"/"
+            }
+            yakit.Output(payload)
+            poc.HTTPEx(req, poc.https(ishttps),poc.replaceQueryParam(k, payload))
+            event,_ =  risk.CheckDNSLogByToken(token)
+            if len(event) > 0 {
+                redirectLog(newResult(url,req,rsp,k+"="+v,k+"="+payload))
+                flag <- true
+            }
+            wg.Done()
+        }(ishttps, url, req, rsp)
+    }
+    wg.Wait()
+
+    _,ok := <-flag
+
+    if !ok {
+        wg_bypass = sync.NewWaitGroup()
+        //如果直接尝试没有成功就尝试bypass
+        for k,v = range postParams{
+            host = poc.GetHTTPPacketHeader(req, "Host")
+            payloads = makeBypassPayload(host,ishttps)
+            for payload in payloads{
+                wg_bypass.Add(1)
+                go func(){
+                    poc.HTTPEx(req, poc.https(ishttps),poc.replacePostParam(k, payload.Url))
+                    event,_ =  risk.CheckDNSLogByToken(payload.Token)
+                    if len(event) > 0 {
+                        redirectLog(newResult(url,req,rsp,k+"="+v,k+"="+payload.Url))
+                    }
+                    wg_bypass.Done()
+                }()
+            }
+        }
+
+        for k,v = range queryParams{
+            host = poc.GetHTTPPacketHeader(req, "Host")
+            payloads = makeBypassPayload(host,ishttps)
+            for payload in payloads{
+                wg_bypass.Add(1)
+                go func(){
+                    poc.HTTPEx(req, poc.https(ishttps),poc.replaceQueryParam(k, payload.Url))
+                    event,_ =  risk.CheckDNSLogByToken(payload.Token)
+                    if len(event) > 0 {
+                        redirectLog(newResult(url,req,rsp,k+"="+v,k+"="+payload.Url))
+                    }
+                    wg_bypass.Done()
+                }()
+            }
+        }
+        wg_bypass.Wait()
+    }
+
+}
+
+
+
+mirrorFilteredHTTPFlow = func(ishttps, url, req, rsp, body) {
+    postParams = poc.GetAllHTTPPacketPostParams(req)
+    queryParams = poc.GetAllHTTPPacketQueryParams(req)
+
+    postParams = paramFilter(postParams)
+    queryParams = paramFilter(queryParams)
+
+
+    if len(postParmas) == 0 && len(queryParams) == 0 {
+        return
+    }
+
+    urlRedirctDetect(ishttps, url, req, rsp, postParams, queryParams)
+
+}

@@ -372,6 +372,27 @@
                 </ul>
             </div>
         </div>
+        <div class="col-md-6">
+            <div class="card" style="margin-top: 12px">
+                <div class="card-header">
+                    url重定向漏洞
+                </div>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item"><a href='/redirect/safe?url=a' target="_blank">严格检查的url重定向</a>
+                    </li>
+                </ul>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item"><a href='/redirect/include-white-list?url=a'
+                                                   target="_blank">仅匹配包含白名单的url重定向</a>
+                    </li>
+                </ul>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item"><a href='/redirect/no_protect?url=a'
+                                                   target="_blank">没有任何保护的url重定向</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -427,19 +448,19 @@
 <script src="/static/js/bootstrap_5.3/popper.min.js"></script>
 <script src="/static/js/bootstrap_5.3/bootstrap.min.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const listItems = document.querySelectorAll('.list-group-item');
-
-        listItems.forEach(function (listItem) {
-            const anchor = listItem.querySelector('a');
-
-            if (anchor) {
-                listItem.addEventListener('click', function () {
-                    anchor.click()
-                });
-            }
-        });
-    });
+    // document.addEventListener('DOMContentLoaded', function () {
+    //     const listItems = document.querySelectorAll('.list-group-item');
+    //
+    //     listItems.forEach(function (listItem) {
+    //         const anchor = listItem.querySelector('a');
+    //
+    //         if (anchor) {
+    //             listItem.addEventListener('click', function () {
+    //                 anchor.click()
+    //             });
+    //         }
+    //     });
+    // });
 </script>
 </body>
 </html>
