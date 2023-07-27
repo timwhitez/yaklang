@@ -372,6 +372,23 @@
                 </ul>
             </div>
         </div>
+        <div class="col-md-6">
+            <div class="card" style="margin-top: 12px">
+                <div class="card-header">
+                    命令注入
+                </div>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item"><a href='/verification/op'
+                                                   target="_blank">基础验证码拦截的表单提交（无法爆破）</a>
+                    </li>
+                </ul>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item"><a href='/verification/bad/op'
+                                                   target="_blank">有验证码拦截的表单提交（逻辑问题）</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -427,19 +444,19 @@
 <script src="/static/js/bootstrap_5.3/popper.min.js"></script>
 <script src="/static/js/bootstrap_5.3/bootstrap.min.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const listItems = document.querySelectorAll('.list-group-item');
-
-        listItems.forEach(function (listItem) {
-            const anchor = listItem.querySelector('a');
-
-            if (anchor) {
-                listItem.addEventListener('click', function () {
-                    anchor.click()
-                });
-            }
-        });
-    });
+    // document.addEventListener('DOMContentLoaded', function () {
+    //     const listItems = document.querySelectorAll('.list-group-item');
+    //
+    //     listItems.forEach(function (listItem) {
+    //         const anchor = listItem.querySelector('a');
+    //
+    //         if (anchor) {
+    //             listItem.addEventListener('click', function () {
+    //                 anchor.click()
+    //             });
+    //         }
+    //     });
+    // });
 </script>
 </body>
 </html>
