@@ -138,15 +138,31 @@ formCheck = func(url,req,rsp,form){
     csrfLog(newResult(url,req,rsp))
 }
 
+corsCheck = func(ishttps,req,rsp){
+    headers = poc.GetHTTPPacketHeaders(rsp)
+
+    if headers["Access-Control-Allow-Origin"] == nil {
+        return
+    }
+
+    if str.Contains(headers["Content-Type"],"js") || str.Contains(headers["Content-Type"],"css"){
+        return
+    }
+
+    if headers["Access-Control-Allow-Origin"] == "*"{
+        corsLog(newResult(url,req,rsp))
+    }
+
+    domain = str.RandStr(5)+".example.com"
+    lowHttp,_,err = poc.HTTPEx(req, poc.replaceHeader("Origin", domain))
+    checkErr(err)
+    lowHttp.
+
+}
 
 mirrorFilteredHTTPFlow = func(ishttps, url, req, rsp, body) {
 
-    headers = poc.GetHTTPPacketHeadersFull(rsp)
-    if len(headers["Access-Control-Allow-Origin"]) == 1{
-        if headers["Access-Control-Allow-Origin"][0] == "*"{
-           corsLog(newResult(url,req,rsp))
-        }
-    }
+    
 
     if  len(headers["Content-Type"]) == 0 || !str.Contains(headers["Content-Type"][0],"html"){
         return
