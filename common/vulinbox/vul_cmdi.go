@@ -7,6 +7,7 @@ import (
 	"github.com/yaklang/yaklang/common/utils"
 	"net/http"
 	"os/exec"
+	"runtime"
 	"time"
 )
 
@@ -50,18 +51,33 @@ func (s *VulinServer) registerPingCMDI() {
 		},
 		{
 			DefaultQuery: "ip=127.0.0.1",
-			Path:         "/ping/bash",
-			Title:        "Bash  解析的命令注入",
+			Path:         "/ping/cmdline",
+			Title:        "命令行解析的命令注入",
 			Handler: func(writer http.ResponseWriter, request *http.Request) {
 				ip := request.URL.Query().Get("ip")
 				if ip == "" {
 					writer.Write([]byte(`no ip set`))
 					return
 				}
+				var cmdline string
+				var arg string
+				switch runtime.GOOS {
+				case "linux":
+					cmdline = "bash"
+					cmd := exec.Command("bash", "-c", "echo Bash is installed!")
+					err := cmd.Run()
+					if err != nil {
+						cmdline = "sh"
+					}
+					arg = "-c"
+				case "windows":
+					cmdline = "cmd"
+					arg = "/C"
+				}
 				var raw = fmt.Sprintf("ping %v", ip)
 				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 				defer cancel()
-				outputs, err1 := exec.CommandContext(ctx, `bash`, "-c", raw).CombinedOutput()
+				outputs, err1 := exec.CommandContext(ctx, cmdline, arg, raw).CombinedOutput()
 				// 尝试将 GBK 转换为 UTF-8
 				utf8Outputs, err2 := utils.GbkToUtf8(outputs)
 				if err2 != nil {
