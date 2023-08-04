@@ -301,6 +301,10 @@ func _createRisk(u string, opts ...RiskParamsOpt) *Risk {
 		r.RiskTypeVerbose = "信息[默认]"
 	}
 
+	if r.Severity == "info" {
+		r.IsRead = true
+	}
+
 	return r
 }
 
