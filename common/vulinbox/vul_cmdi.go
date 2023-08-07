@@ -39,27 +39,7 @@ func (s *VulinServer) registerPingCMDI() {
 		{
 			DefaultQuery: "ip=127.0.0.1",
 			Path:         "/interactive/nowaf/cmdline",
-			Title:        "命令行解析的命令注入(无waf)",
-			Handler: func(writer http.ResponseWriter, request *http.Request) {
-				ip := request.URL.Query().Get("ip")
-				if ip == "" {
-					writer.Write([]byte("ip is empty"))
-					return
-				}
-				outputs, err := cmdlineDo(ip)
-				if err != nil {
-					writer.Write([]byte(err.Error()))
-				} else {
-					writer.Write(outputs)
-				}
-
-			},
-			RiskDetected: true,
-		},
-		{
-			DefaultQuery: "ip=127.0.0.1",
-			Path:         "/interactive/nowaf/cmdline",
-			Title:        "命令行解析的命令注入(无waf)",
+			Title:        "有回显命令行解析的命令注入(无waf)",
 			Handler: func(writer http.ResponseWriter, request *http.Request) {
 				ip := request.URL.Query().Get("ip")
 				if ip == "" {
@@ -79,7 +59,7 @@ func (s *VulinServer) registerPingCMDI() {
 		{
 			DefaultQuery: "ip=127.0.0.1",
 			Path:         "/interactive/waf/level1/cmdline",
-			Title:        "命令行解析的命令注入(过滤空格)",
+			Title:        "有回显命令行解析的命令注入(过滤空格)",
 			Handler: func(writer http.ResponseWriter, request *http.Request) {
 				ip := request.URL.Query().Get("ip")
 				if ip == "" {
@@ -94,6 +74,134 @@ func (s *VulinServer) registerPingCMDI() {
 					writer.Write(outputs)
 				}
 
+			},
+			RiskDetected: true,
+		},
+		{
+			DefaultQuery: "ip=127.0.0.1",
+			Path:         "/interactive/waf/level2/cmdline",
+			Title:        "有回显命令行解析的命令注入(过滤空格和部分特殊符号)",
+			Handler: func(writer http.ResponseWriter, request *http.Request) {
+				ip := request.URL.Query().Get("ip")
+				if ip == "" {
+					writer.Write([]byte("ip is empty"))
+					return
+				}
+				ip = filterBlank(ip)
+				ip = filterSymbolIncomplete(ip)
+				outputs, err := cmdlineDo(ip)
+				if err != nil {
+					writer.Write([]byte(err.Error()))
+				} else {
+					writer.Write(outputs)
+				}
+
+			},
+			RiskDetected: true,
+		},
+		{
+			DefaultQuery: "ip=127.0.0.1",
+			Path:         "/interactive/waf/level3/cmdline",
+			Title:        "有回显命令行解析的命令注入(过滤空格和全部特殊符号)",
+			Handler: func(writer http.ResponseWriter, request *http.Request) {
+				ip := request.URL.Query().Get("ip")
+				if ip == "" {
+					writer.Write([]byte("ip is empty"))
+					return
+				}
+				ip = filterBlank(ip)
+				ip = filterSymbol(ip)
+				outputs, err := cmdlineDo(ip)
+				if err != nil {
+					writer.Write([]byte(err.Error()))
+				} else {
+					writer.Write(outputs)
+				}
+
+			},
+			RiskDetected: true,
+		},
+		{
+			DefaultQuery: "ip=127.0.0.1",
+			Path:         "/blind/on/cmdline",
+			Title:        "无回显命令行解析的命令注入(无waf)",
+			Handler: func(writer http.ResponseWriter, request *http.Request) {
+				ip := request.URL.Query().Get("ip")
+				if ip == "" {
+					writer.Write([]byte("ip is empty"))
+					return
+				}
+				_, err := cmdlineDo(ip)
+				if err != nil {
+					writer.WriteHeader(500)
+					return
+				}
+				writer.WriteHeader(200)
+
+			},
+			RiskDetected: true,
+		},
+		{
+			DefaultQuery: "ip=127.0.0.1",
+			Path:         "/blind/waf/level1/cmdline",
+			Title:        "无回显命令行解析的命令注入(过滤空格)",
+			Handler: func(writer http.ResponseWriter, request *http.Request) {
+				ip := request.URL.Query().Get("ip")
+				if ip == "" {
+					writer.Write([]byte("ip is empty"))
+					return
+				}
+				ip = filterBlank(ip)
+				_, err := cmdlineDo(ip)
+				if err != nil {
+					writer.WriteHeader(500)
+					return
+				}
+				writer.WriteHeader(200)
+
+			},
+			RiskDetected: true,
+		},
+		{
+			DefaultQuery: "ip=127.0.0.1",
+			Path:         "/blind/waf/level1/cmdline",
+			Title:        "无回显命令行解析的命令注入(过滤空格和部分特殊符号)",
+			Handler: func(writer http.ResponseWriter, request *http.Request) {
+				ip := request.URL.Query().Get("ip")
+				if ip == "" {
+					writer.Write([]byte("ip is empty"))
+					return
+				}
+				ip = filterBlank(ip)
+				ip = filterSymbolIncomplete(ip)
+				_, err := cmdlineDo(ip)
+				if err != nil {
+					writer.WriteHeader(500)
+					return
+				}
+				writer.WriteHeader(200)
+
+			},
+			RiskDetected: true,
+		},
+		{
+			DefaultQuery: "ip=127.0.0.1",
+			Path:         "/blind/waf/level3/cmdline",
+			Title:        "无回显命令行解析的命令注入(过滤空格和全部特殊符号)",
+			Handler: func(writer http.ResponseWriter, request *http.Request) {
+				ip := request.URL.Query().Get("ip")
+				if ip == "" {
+					writer.Write([]byte("ip is empty"))
+					return
+				}
+				ip = filterBlank(ip)
+				ip = filterSymbol(ip)
+				_, err := cmdlineDo(ip)
+				if err != nil {
+					writer.WriteHeader(500)
+					return
+				}
+				writer.WriteHeader(200)
 			},
 			RiskDetected: true,
 		},
@@ -135,7 +243,7 @@ func cmdlineDo(ip string) ([]byte, error) {
 		arg = "/C"
 	}
 	var raw = fmt.Sprintf("ping %v", ip)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	outputs, err := exec.CommandContext(ctx, cmdline, arg, raw).CombinedOutput()
 	if err != nil {
