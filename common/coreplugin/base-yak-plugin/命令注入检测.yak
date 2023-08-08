@@ -1,0 +1,64 @@
+newResult = func( url, reqRaw, respRaw, param, payload) {
+    return { "url": url,   "reqRaw": reqRaw, "respRaw": respRaw ,"param" : param, "payload":payload}
+}
+
+//checkErr 检查错误并退出
+checkErr = func(err) {
+    if err != nil {
+        yakit.Output(sprintf("command-inject-DETECT error: %s", err))
+        os.Exit(1)
+    }
+}
+
+redirectLog = func(result) {
+    url = result.url
+    param = result.param 
+    reqRaw = result.reqRaw  
+    respRaw = result.respRaw
+    payload = result.payload
+    msg = "Found command inject"
+
+    report = {"message": msg, "param":param}
+    
+    yakit_output(report)
+
+    risk.NewRisk(
+        url,
+        risk.title(sprintf("command inject for: %v", url)),
+        risk.details(report),
+        risk.parameter(param),
+        risk.description(`U命令注入漏洞（Command Injection Vulnerability）是一种安全漏洞，通常出现在应用程序中，允许攻击者通过注入恶意命令来执行未经授权的操作。
+
+命令注入漏洞的发生通常涉及用户输入的不正确处理。当应用程序接受用户输入并将其作为命令或命令参数执行时，如果没有正确的输入验证和过滤，攻击者可以利用这个漏洞注入额外的命令，从而执行恶意操作。`),
+        risk.solution(`输入验证和过滤：对用户输入进行严格的验证和过滤，确保只接受预期的输入数据。
+
+使用参数化查询或预编译语句：在执行命令或查询时，使用参数化查询或预编译语句，以防止命令和用户输入混合。
+
+最小权限原则：应用程序应以最小权限运行，限制可执行的操作和系统访问权限。
+
+安全编码实践：遵循安全编码实践，包括输入验证、输出编码、错误处理等。`),
+        risk.type("command inject"),
+        risk.request(reqRaw), 
+        risk.payload(payload),
+        risk.response(respRaw),
+        risk.severity("warning"),
+    )
+    
+}
+
+command_Inject_DETECT = func(){
+
+}
+
+
+
+mirrorFilteredHTTPFlow = func(ishttps, url, req, rsp, body) {
+    freq, err = fuzz.HTTPRequest(req, fuzz.https(ishttps))
+    params =  freq.GetGetQueryParams()
+    params = append(params, freq.GetPostParams()...)
+
+
+    for param in params{
+        command_Inject_DETECT(url, req, rsp,param, ishttps)
+    }
+}
