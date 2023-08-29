@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"github.com/yaklang/yaklang/common/utils"
 	"github.com/yaklang/yaklang/common/utils/lowhttp"
-	"github.com/yaklang/yaklang/common/yak/yaklib/codec"
 	"html/template"
 	"net/http"
 )
@@ -17,6 +16,8 @@ var safeUpdate []byte
 
 var info = "adminPassword"
 
+var allInfo = make(map[string]string)
+
 func (s *VulinServer) registerCsrf() {
 	var router = s.router
 	csrfGroup := router.PathPrefix("/csrf").Name("表单 CSRF 保护测试").Subrouter()
@@ -26,13 +27,15 @@ func (s *VulinServer) registerCsrf() {
 			Path:         "/unsafe",
 			Title:        "没有保护的表单",
 			Handler: func(writer http.ResponseWriter, request *http.Request) {
-				if !cookieCheck(writer, request, "/csrf/unsafe") {
+				raw, _ := utils.HttpDumpWithBody(request, true)
+				vulCookie := lowhttp.GetHTTPPacketCookieFirst(raw, "vulCookie")
+				if !cookieCheck(writer, vulCookie, "/csrf/unsafe") {
 					return
 				}
 				data := map[string]string{
 					"Info": info,
 				}
-				updateInfo(writer, request, data, string(unsafeUpdate))
+				updateInfo(writer, request, data, string(unsafeUpdate), vulCookie)
 			},
 		},
 		{
@@ -40,12 +43,14 @@ func (s *VulinServer) registerCsrf() {
 			Path:         "/safe",
 			Title:        "csrf_token保护的表单",
 			Handler: func(writer http.ResponseWriter, request *http.Request) {
-				if !cookieCheck(writer, request, "/csrf/safe") {
+				raw, _ := utils.HttpDumpWithBody(request, true)
+				vulCookie := lowhttp.GetHTTPPacketCookieFirst(raw, "vulCookie")
+				if !cookieCheck(writer, vulCookie, "/csrf/safe") {
 					return
 				}
 				if request.Method == http.MethodPost {
 					token := request.PostFormValue("csrf_token")
-					if token != codec.Md5("confidential_cookie_vulinbox") {
+					if token != allInfo[vulCookie] {
 						writer.Write([]byte("csrf_token check error"))
 						writer.WriteHeader(http.StatusForbidden)
 						return
@@ -53,9 +58,9 @@ func (s *VulinServer) registerCsrf() {
 				}
 				data := map[string]string{
 					"Info":  info,
-					"Token": codec.Md5("confidential_cookie_vulinbox"),
+					"Token": allInfo[vulCookie],
 				}
-				updateInfo(writer, request, data, string(safeUpdate))
+				updateInfo(writer, request, data, string(safeUpdate), vulCookie)
 			},
 		},
 	}
@@ -66,14 +71,14 @@ func (s *VulinServer) registerCsrf() {
 
 }
 
-func cookieCheck(writer http.ResponseWriter, request *http.Request, location string) bool {
-	raw, _ := utils.HttpDumpWithBody(request, true)
-	vulCookie := lowhttp.GetHTTPPacketCookieFirst(raw, "vulCookie")
-	if vulCookie == "" {
+func cookieCheck(writer http.ResponseWriter, vulCookie string, location string) bool {
+	if allInfo[vulCookie] == "" {
+		cookieString := utils.RandStringBytes(10)
 		http.SetCookie(writer, &http.Cookie{
 			Name:  "vulCookie",
-			Value: "confidential_cookie",
+			Value: cookieString,
 		})
+		allInfo[cookieString] = utils.RandStringBytes(10)
 		writer.Header().Set("Location", location)
 		writer.WriteHeader(302)
 		return false
@@ -81,11 +86,15 @@ func cookieCheck(writer http.ResponseWriter, request *http.Request, location str
 	return true
 }
 
-func updateInfo(writer http.ResponseWriter, request *http.Request, data map[string]string, tp string) {
+func updateInfo(writer http.ResponseWriter, request *http.Request, data map[string]string, tp string, vulCookie string) {
 	if request.Method == http.MethodPost {
 		if request.PostFormValue("info") != "" {
 			info = request.PostFormValue("info")
 			data["Info"] = info
+			if data["Token"] != "" {
+				allInfo[vulCookie] = utils.RandStringBytes(10)
+				data["Token"] = allInfo[vulCookie]
+			}
 		} else {
 			writer.Write([]byte("缺少参数"))
 			writer.WriteHeader(http.StatusBadRequest)
