@@ -1,97 +1,53 @@
 package main
 
 import (
-	"github.com/antlr/antlr4/runtime/Go/antlr/v4"
-	yak "github.com/yaklang/yaklang/common/yak/antlr4yak/parser"
-	"github.com/yaklang/yaklang/common/yak/antlr4yak/yakast"
+	"context"
+	"fmt"
+	"os"
+	"strconv"
+
+	"github.com/davecgh/go-spew/spew"
+	"github.com/yaklang/yaklang/common/yak/antlr4yak/yakvm"
 )
 
 func main() {
-	inputStream := antlr.NewInputStream(`
-if true {
-    return}
-
-ab+1*2
-f"\"asdf" 
-123
-0xAfAA
-0b10111
-0o127
-[1,2,3]
-{1:23}
-{1:23, "abc": 123} + 1
-1+1
-
-abc.hasPrefix(1+1)
-
-if 1+1 {
-    1+1 
-}
-
-if 1+1 {   } elif true {}
-if 1+1 {} elif true {} else {a=1+1;}
-ab?1+1:1 
-
-
-/* switch */
-switch true {
-case "1+1":
-    1+1
-    a = 123
-case "true":
-case "123":
-    1+1
-    break;;;
-    case "123":
-default:
-    1+1
-}
-switch true {
-case 1:
-}
-switch true {
-default:
-123
-}
-switch true {
-case 1,1,23,3: 
-case 21,3,5:
-}
-
-// for 语句
-for 1 { println(1)
-a+1
-asdfasd+1123}
-
-// func def
-a = func(id,a...) {}
-a()
-fc()
-fn{a+1;a+11233;}
-fn(p1,p2,p3){}
-fn{a+1}
-fn abc(p1,p2,p3){}
-fn abc(p1,p2,p3...){}
-
-// for range
-for range [1,2,3] {
-    println(1,2,3)
-}
-
-for i,b = range [1,2,3] {
-    println(1,2,3)
-}
-
-for 1 = range [1,2,3] { println(1) }
-`)
-	lex := yak.NewYaklangLexer(inputStream)
-
-	//for _, t := range lex.GetAllTokens() {
-	//	println(t.GetText())
-	//}
-
-	tokenStream := antlr.NewCommonTokenStream(lex, antlr.TokenDefaultChannel)
-	p := yak.NewYaklangParser(tokenStream)
-	vt := &yakast.YakCompiler{}
-	p.Program().Accept(vt)
+	code, err := os.ReadFile("./marshalCode")
+	if err != nil {
+		spew.Dump(err)
+		panic("read code error")
+	}
+	m := yakvm.NewCodesMarshaller()
+	symbolTable, codes, err := m.Unmarshal(code)
+	if err != nil {
+		panic("unmarshal: " + err.Error())
+	}
+	vm := yakvm.NewWithSymbolTable(symbolTable)
+	vm.SetVar("print", func(args ...interface{}) {
+		fmt.Print(args...)
+	})
+	vm.SetVar("println", func(args ...interface{}) {
+		fmt.Println(args...)
+	})
+	vm.SetVar("get", func() []byte {
+		var input string
+		fmt.Scanln(&input)
+		return []byte(input)
+	})
+	vm.SetVar("string2int", func(str string) int {
+		i, err := strconv.Atoi(str)
+		if err != nil {
+			return 0
+		}
+		return i
+	})
+	vm.SetVar("len", func(a []byte) int {
+		return len(a)
+	})
+	err = vm.Exec(context.Background(), func(frame *yakvm.Frame) {
+		frame.NormalExec(codes)
+	})
+	if err != nil {
+		spew.Dump(err)
+		panic("exec code error")
+	}
 }
