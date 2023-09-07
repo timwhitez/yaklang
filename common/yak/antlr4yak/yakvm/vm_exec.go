@@ -1,20 +1,19 @@
 package yakvm
 
 import (
-	"bytes"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync/atomic"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/yaklang/yaklang/common/log"
-	"github.com/yaklang/yaklang/common/mutate"
+
+	// "github.com/yaklang/yaklang/common/mutate"
 	"github.com/yaklang/yaklang/common/utils"
-	"github.com/yaklang/yaklang/common/yak/antlr4nasl/vm"
+	// "github.com/yaklang/yaklang/common/yak/antlr4nasl/vm"
 	"github.com/yaklang/yaklang/common/yak/antlr4yak/yakvm/vmstack"
-	"github.com/yaklang/yaklang/common/yakdocument"
+	// "github.com/yaklang/yaklang/common/yakdocument"
 )
 
 type ExitCodeType int
@@ -212,27 +211,10 @@ func (v *Frame) execExWithContinueOption(isContinue bool) {
 	}
 }
 
-func ShowOpcodes(c []*Code) {
-	index := 0
-	for i, code := range c {
-		fmt.Printf("%s%-13s %4d:%v\n", strings.Repeat("\t", index), code.RangeVerbose(), i, code.String())
-	}
-}
-
-func ShowOpcodesWithSource(src string, c []*Code) {
-	lines := strings.Split(src, "\n")
-	cur := -1
+func ShowOpcodeEx(c []*Code, show func(int, *Code)) {
 	funs := make([]*Function, 0)
 	for i, code := range c {
-		if cur < 0 || code.StartLineNumber != cur {
-			cur = code.StartLineNumber
-			fmt.Printf("------------------------------------------\n"+
-				"line:%3d %s\n"+
-				"------------------------------------------\n", cur-1, lines[cur-1])
-		}
-
-		fmt.Printf("%-13s %4d:%v\n", code.RangeVerbose(), i, code.String())
-
+		show(i, code)
 		if code.Opcode == OpPush {
 			v, ok := code.Op1.Value.(*Function)
 			if ok {
@@ -242,8 +224,28 @@ func ShowOpcodesWithSource(src string, c []*Code) {
 	}
 	for _, v := range funs {
 		fmt.Printf("\n\n%s\n", v.GetActualName())
-		ShowOpcodesWithSource(src, v.codes)
+		ShowOpcodeEx(v.codes, show)
 	}
+}
+
+func ShowOpcodes(c []*Code) {
+	ShowOpcodeEx(c, func(i int, code *Code) {
+		fmt.Printf("%-13s %4d:%v\n", code.RangeVerbose(), i, code.String())
+	})
+}
+
+func ShowOpcodesWithSource(src string, c []*Code) {
+	lines := strings.Split(src, "\n")
+	cur := -1
+	ShowOpcodeEx(c, func(i int, code *Code) {
+		if cur < 0 || code.StartLineNumber != cur {
+			cur = code.StartLineNumber
+			fmt.Printf("------------------------------------------\n"+
+				"line:%3d %s\n"+
+				"------------------------------------------\n", cur-1, lines[cur-1])
+		}
+		fmt.Printf("%-13s %4d:%v\n", code.RangeVerbose(), i, code.String())
+	})
 }
 
 func OpcodesString(c []*Code) string {
@@ -333,104 +335,6 @@ func (v *Frame) _execCode(c *Code, debug bool) {
 		v.asyncCall(callableValue, wavy, args)
 	case OpAssign:
 		switch v.vm.GetConfig().vmMode {
-		case NASL:
-			if c.Op1 != nil && c.Op1.IsString() && c.Op1.String() == "nasl_global_declare" {
-				table := v.vm.globalVar["__nasl_global_var_table"].(map[int]*Value)
-				valId := v.pop()
-				v1, ok := v.CurrentScope().GetValueByID(valId.SymbolId)
-				table[valId.SymbolId] = v1
-				if !ok {
-					table[valId.SymbolId] = GetUndefined()
-				}
-				return
-			}
-			if c.Op1 != nil && c.Op1.IsString() && c.Op1.String() == "nasl_declare" {
-				valId := v.pop()
-				_, ok := v.CurrentScope().GetValueByID(valId.SymbolId)
-				if !ok {
-					valId.AssignBySymbol(v.CurrentScope(), GetUndefined())
-				}
-				return
-			}
-			arg2 := v.pop()
-			arg1 := v.pop()
-
-			if arg1.IsLeftValueRef() {
-				table := v.vm.globalVar["__nasl_global_var_table"].(map[int]*Value)
-				if _, ok := table[arg1.SymbolId]; ok {
-					table[arg1.SymbolId] = arg2
-					v.push(arg2)
-					return
-				}
-				if arg2.IsYakFunction() { // nasl的函数都保存到全局
-					table[arg1.SymbolId] = arg2
-					v.push(arg2)
-					return
-				} else {
-					arg1.AssignBySymbol(v.CurrentScope(), arg2)
-					arg1.Assign(v, arg2)
-				}
-			} else {
-				assignOk := false
-				if v1, ok := arg1.Value.([]*Value); ok {
-					if len(v1) == 2 {
-						if v1[0].Value == nil {
-							array := NewAutoValue(vm.NewEmptyNaslArray())
-							v.CurrentScope().NewValueByID(v1[0].SymbolId, array)
-							v1[0] = array
-						}
-						if v2, ok := v1[0].Value.(*vm.NaslArray); ok {
-							if v1[1].IsInt() {
-								v2.AddEleToList(v1[1].Int(), arg2.Value)
-								assignOk = true
-							} else if v1[1].IsString() {
-								v2.AddEleToArray(v1[1].String(), arg2.Value)
-								assignOk = true
-							} else {
-								panic("nasl array index must be int or string, but got " + v1[1].TypeVerbose)
-							}
-						}
-					}
-
-				}
-				if !assignOk {
-					panic("assign error")
-				}
-			}
-			v.push(arg2)
-			return
-		case LUA:
-			assignArgs := v.popArgN(2)
-			leftValues := assignArgs[1]
-			rightValues := assignArgs[0]
-			rightVal := rightValues.Value
-			leftVal := leftValues.Value
-
-			if v, ok := rightVal.([]*Value); ok && len(v) > 0 {
-				rightVal = v[0].Value
-			}
-			if _, ok := rightVal.(*Function); ok {
-				if rightVal.(*Function).scope == nil {
-					rightVal.(*Function).scope = v.CurrentScope()
-				}
-				if val, ok := leftVal.([]*Value); ok && len(val) > 0 {
-					lv, err := val[0].ConvertToLeftValue()
-					if err == nil {
-						if lv.IsLeftValueRef() {
-							funcName, ok := v.CurrentScope().symtbl.GetNameByVariableId(lv.SymbolId)
-							if ok {
-								rightVal.(*Function).anonymousFunctionBindName = funcName
-							}
-						}
-					}
-				}
-			}
-			if c.Unary == 0 {
-				v.luaGlobalAssign(leftValues, rightValues)
-			} else {
-				v.luaLocalAssign(leftValues, rightValues)
-			}
-			return
 		case YAK:
 			fallthrough
 		default:
@@ -638,16 +542,6 @@ func (v *Frame) _execCode(c *Code, debug bool) {
 				v.push(NewStringValue(strValue))
 			case 'b':
 				v.push(NewAutoValue([]byte(strValue)))
-			case 'x':
-				//使用了f前缀生成的是 string slice
-				value, err := mutate.FuzzTagExec(strValue)
-				if err != nil {
-					v.push(NewStringSliceValue([]string{}))
-					log.Error(err)
-					//解析fuzztag出错时不panic，防止fuzztag解析失败导致语言引擎异常
-					//panic(fmt.Sprintf("mutate.FuzzTagExec failed: %s", err))
-				}
-				v.push(NewStringSliceValue(value))
 			default:
 				panic("unknown string prefix")
 			}
@@ -670,62 +564,7 @@ func (v *Frame) _execCode(c *Code, debug bool) {
 		return
 	case OpPushRef:
 		switch v.vm.GetConfig().vmMode {
-		case NASL:
-			id := c.Unary
-			table := v.vm.globalVar["__nasl_global_var_table"].(map[int]*Value)
-			if val, ok := table[id]; ok {
-				v.push(val)
-				return
-			}
-			name, ok := v.CurrentScope().GetSymTable().GetNameByVariableId(id)
-			if ok && name == "_FCT_ANON_ARGS" {
-				if val, ok := v.contextData["argument"]; ok {
-					v.push(NewAutoValue(val.(*vm.NaslArray)))
-					return
-				}
-			}
-			//尝试在作用域获取值
-			val, ok := v.CurrentScope().GetValueByID(id)
-			if id == 118 && strings.Contains(val.String(), "html") && c.StartLineNumber == 629 {
-				println()
-			}
-			if !ok {
-				name, ok1 := v.CurrentScope().GetSymTable().GetNameByVariableId(id)
-				if ok1 {
-					//使用名字在全局变量中查找
-					if v1, ok1 := v.GlobalVariables[name]; ok1 {
-						val = NewValue("function", v1, name)
-						ok = true
-					} else if v1, ok2 := v.CurrentScope().GetValueByName(name + "s"); ok2 && v1.IsYakFunction() {
-						v1.AddExtraInfo("getOne", true)
-						val = v1
-						ok = true
-					} else {
-						if v.CurrentScope().GetSymTable().IdIsInited(id) {
-							val = GetUndefined()
-							ok = true
-						}
-
-						//panic("BUG: cannot found value by name:[" + name + "]")
-					}
-				}
-				if !ok {
-					panic("cannot found value by variable name:[" + name + "]")
-				}
-			} else {
-				val1 := *val // nasl里函数参数和形参名是绑定的，这里需要拷贝一份
-				val = &val1
-			}
-			if !ok {
-				panic("BUG: cannot found value by symbol:[" + fmt.Sprint(id) + "]")
-			}
-			if val.Value == nil {
-				val = NewUndefined(id)
-			}
-			val.SymbolId = id
-			v.push(val)
-			return
-		default:
+		case YAK:
 			id := c.Unary
 			val, ok := v.CurrentScope().GetValueByID(id)
 			if !ok {
@@ -1194,105 +1033,6 @@ func (v *Frame) _execCode(c *Code, debug bool) {
 		}
 	case OpCall:
 		switch v.vm.GetConfig().vmMode {
-		case NASL:
-			args := make([]*Value, c.Unary)
-			i := c.Unary - 1
-			for i >= 0 {
-				arg := v.pop()
-				if arg.TypeVerbose == "ref" {
-					args[i+1].SymbolId = arg.SymbolId
-				} else {
-					args[i] = arg
-					i--
-				}
-			}
-			Val := v.pop()
-			var idValue *Value
-			if Val.TypeVerbose == "ref" {
-				args[i+1].SymbolId = Val.SymbolId
-				idValue = v.pop()
-			} else {
-				idValue = Val
-			}
-			//内置函数直接调用
-			if idValue.Literal == "__method_proxy__" {
-				params := [][]interface{}{}
-				params = append(params, []interface{}{args[0].Value})
-				for i := 1; i < len(args); i++ {
-					params = append(params, []interface{}{args[i].SymbolId, args[i].Value})
-				}
-				val := idValue.Call(v, false, NewValue("", params, ""))
-				typeVerbose := "undefined"
-				if val != nil {
-					typeVerbose = reflect.TypeOf(val).String()
-				}
-				v.push(&Value{
-					TypeVerbose: typeVerbose,
-					Value:       val,
-				})
-			} else {
-				if v1, ok := v.GlobalVariables["__OpCallCallBack__"]; ok {
-					if v2, ok := v1.(func(string)); ok {
-						if v3, ok := idValue.Value.(*Function); ok {
-							if idValue.GetExtraInfo("getOne") != nil {
-								v2(v3.name[:len(v3.name)-1])
-							} else {
-								v2(v3.name)
-							}
-						}
-					}
-				}
-				naslArray, err := vm.NewNaslArray([]any{})
-				if err != nil {
-					panic(utils.Errorf("NewNaslArray error: %s", err.Error()))
-				}
-				for index, v := range args {
-					naslArray.AddEleToList(index, v.Value)
-				}
-				v.contextData["argument"] = naslArray
-				val := idValue.Call(v, false, args...)
-				if idValue.GetExtraInfo("getOne") != nil {
-					refVal := reflect.ValueOf(val)
-					if refVal.Kind() == reflect.Slice || refVal.Kind() == reflect.Array {
-						if refVal.Len() > 0 {
-							val = refVal.Index(0).Interface()
-						} else {
-							val = -1
-						}
-					} else if array, ok := val.(*vm.NaslArray); ok {
-						ok1 := false
-						for i := 0; i < array.GetMaxIdx(); i++ {
-							if array.GetElementByNum(i) != nil {
-								val = array.GetElementByNum(i)
-								ok1 = true
-								break
-							}
-						}
-						if !ok1 {
-							val = -1
-						}
-					} else {
-						panic("getOne call must return a slice or array")
-					}
-				}
-				typeVerbose := "undefined"
-				if val != nil {
-					typeVerbose = reflect.TypeOf(val).String()
-				}
-
-				v.push(&Value{
-					TypeVerbose: typeVerbose,
-					Value:       val,
-				})
-			}
-			//外置函数手动调用
-			//symbolTable := v.CurrentScope().GetSymTable()
-			//funName, ok := symbolTable.GetNameByVariableId(idValue.Int())
-			return
-		case LUA:
-			args := v.popArgN(c.Unary)
-			callableValue := v.pop()
-			v.callLua(callableValue, args)
 		case YAK:
 			fallthrough
 		default:
@@ -1338,14 +1078,6 @@ func (v *Frame) _execCode(c *Code, debug bool) {
 		return
 	case OpNewSlice:
 		vals := v.popArgN(c.Unary)
-		if v.vm.GetConfig().vmMode == NASL {
-			array := vm.NewEmptyNaslArray()
-			for i, val := range vals {
-				array.AddEleToList(i, val.Value)
-			}
-			v.push(NewAutoValue(array))
-			return
-		}
 		elementType := GuessValuesTypeToBasicType(vals...)
 		sliceType := reflect.SliceOf(elementType)
 		value := reflect.MakeSlice(sliceType, c.Unary, c.Unary)
@@ -1556,103 +1288,6 @@ func (v *Frame) _execCode(c *Code, debug bool) {
 		}
 	case OpNewMap:
 		switch v.vm.GetConfig().vmMode {
-		case NASL:
-			array := vm.NewEmptyNaslArray()
-			for i := 0; i < c.Unary; i++ {
-				k := v.pop()
-				v := v.pop()
-				if k.IsString() {
-					array.AddEleToArray(k.String(), v.Value)
-				} else if k.IsInt() {
-					array.AddEleToList(k.Int(), v.Value)
-				} else {
-					panic("nasl array index must be int or string, but got " + k.Type().String())
-				}
-			}
-			v.push(NewAutoValue(array))
-			return
-		case LUA:
-			var vals []*Value
-			if c.Op1 == undefined {
-				vals = v.popArgN(2)
-				variadic := vals[1].Value
-				variadicRF := reflect.ValueOf(variadic)
-				index := 0
-				values := make([]*Value, 0)
-				if variadicRF.IsValid() && variadicRF.Kind() == reflect.Map {
-					for index < variadicRF.Len() {
-						values = append(values, NewAutoValue(variadicRF.MapIndex(reflect.ValueOf(index+1)).Interface()))
-						index++
-					}
-				} else { // 可变参数接收到空参数 也就是没传参
-					values = append(values, undefined)
-				}
-				mt := reflect.MapOf(literalReflectType_Interface, literalReflectType_Interface)
-				mapVal := reflect.MakeMapWithSize(mt, len(values))
-				for index := range values {
-					vV := reflect.ValueOf(values[index].Value)
-					err := v.AutoConvertReflectValueByType(&vV, literalReflectType_Interface)
-					if err != nil {
-						panic(fmt.Sprintf("cannot convert %v to %v", vV.Type(), "interface{} type"))
-					}
-					mapVal.SetMapIndex(reflect.ValueOf(index+1), vV)
-				}
-				v.push(NewValue(mt.String(), mapVal.Interface(), ""))
-				return
-			} else {
-				variadicPresent := false
-				variadicPose := 0
-				if c.Op1 != nil && c.Op2 == undefined {
-					variadicPresent = true
-					variadicPose = c.Op1.Int()
-				}
-				vals = v.popArgN(c.Unary * 2)
-				if len(vals) <= 0 {
-					v.push(NewGenericMap(""))
-					return
-				}
-				var keys = make([]*Value, c.Unary)
-				var values = make([]*Value, c.Unary)
-				for i := 0; i < c.Unary; i++ {
-					kI := i * 2
-					vI := i*2 + 1
-					keys[i] = vals[kI]
-					values[i] = vals[vI]
-				}
-				if variadicPresent {
-					variadic := values[variadicPose]
-					variadicRF := reflect.ValueOf(variadic)
-					if variadicRF.IsValid() && variadicRF.Kind() == reflect.Map {
-						values[variadicPose] = NewAutoValue(variadicRF.MapIndex(reflect.ValueOf(1)).Interface())
-					} else {
-						values[variadicPose] = undefined
-					}
-					if len(values) == 0 { // 可变参数为空map 也就是没传参 那他应该在被用作创建map时表现为nil
-						values[0] = undefined
-					}
-				}
-				kType := literalReflectType_Interface
-				vType := literalReflectType_Interface
-				mt := reflect.MapOf(kType, vType)
-				mapVal := reflect.MakeMapWithSize(mt, len(keys))
-				for index := range keys {
-					kV := reflect.ValueOf(keys[index].Value)
-					vV := reflect.ValueOf(values[index].Value)
-					err := v.AutoConvertReflectValueByType(&kV, kType)
-					if err != nil {
-						panic(fmt.Sprintf("cannot convert %v to %v", kV.Type(), kType))
-					}
-					err = v.AutoConvertReflectValueByType(&vV, vType)
-					if err != nil {
-						panic(fmt.Sprintf("cannot convert %v to %v", vV.Type(), vType))
-					}
-					mapVal.SetMapIndex(kV, vV)
-				}
-
-				v.push(NewValue(mt.String(), mapVal.Interface(), ""))
-
-				return
-			}
 		case YAK:
 			fallthrough
 		default:
@@ -2066,33 +1701,6 @@ func (v *Frame) execOp2(op OpcodeFlag, op1, op2 *Value) *Value {
 }
 
 func panicByNoSuchKey(mem string, i interface{}) {
-	structHelper, _ := yakdocument.Dir(i)
-	if structHelper != nil {
-		var fields []string
-		var methods []string
-		for _, m := range structHelper.Methods {
-			methods = append(methods, m.Name)
-		}
-		for _, m := range structHelper.PtrMethods {
-			methods = append(methods, m.Name)
-		}
-		for _, f := range structHelper.Fields {
-			fields = append(fields, f.Name)
-		}
-		if len(methods) > 0 || len(fields) > 0 {
-			var buf bytes.Buffer
-			if len(methods) > 0 && len(fields) > 0 {
-				buf.WriteString(fmt.Sprintf("fields:%v or methods:%v", spew.Sdump(fields), spew.Sdump(utils.RemoveRepeatStringSlice(methods))))
-			} else if len(methods) > 0 && fields == nil {
-				buf.WriteString(fmt.Sprintf("methods:%v", spew.Sdump(methods)))
-			} else {
-				buf.WriteString(fmt.Sprintf("fields:%v", spew.Sdump(fields)))
-			}
-			panic("no such field or method: " + mem +
-				" in native struct or ptr native struct!\n do you mean one of " + buf.String())
-		}
-	}
-	panic("no such field or method: " + mem + " in native struct or ptr native struct!")
 }
 
 /*
