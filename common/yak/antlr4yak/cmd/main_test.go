@@ -87,7 +87,7 @@ func TestCheckFlag(t *testing.T) {
 }
 
 func TestCompile(t *testing.T) {
-	flag := []byte("flag{aaaaaaaaaaaaaaaaa}")
+	flag := []byte("yak{A_RE@LW0RLD_5TACKB@SE_VM}")
 	Encode(flag)
 	str := strings.Join(
 		lo.Map(flag, func(v byte, _ int) string {

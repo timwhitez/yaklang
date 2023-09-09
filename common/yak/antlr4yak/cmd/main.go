@@ -11,7 +11,11 @@ import (
 )
 
 func main() {
-	code, err := os.ReadFile("./marshalCode")
+	if len(os.Args) < 2 {
+		fmt.Println("help: ./main ./marshalCode")
+		os.Exit(0)
+	}
+	code, err := os.ReadFile(os.Args[1])
 	if err != nil {
 		spew.Dump(err)
 		panic("read code error")
