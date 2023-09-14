@@ -3,11 +3,14 @@ package yakgrpc
 import (
 	"encoding/json"
 	"github.com/jinzhu/gorm"
+	"github.com/yaklang/yaklang/common/consts"
 	"github.com/yaklang/yaklang/common/go-funk"
 	"github.com/yaklang/yaklang/common/log"
 	"github.com/yaklang/yaklang/common/utils"
 	"github.com/yaklang/yaklang/common/yakgrpc/yakit"
 	"github.com/yaklang/yaklang/common/yakgrpc/ypb"
+	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -155,6 +158,8 @@ func (p *ProgressManager) GetSimpleProgressByUid(uid string, removeOld, isPop bo
 	if removeOld {
 		p.SaveProgressToDatabase(KEY_SimpleDetectManager, progress)
 		if isPop {
+			runtimeId := utils.InterfaceToMapInterface(req.LastRecord.ExtraInfo)["runtime_id"].(string)
+			os.Remove(filepath.Join(consts.GetDefaultYakitBaseTempDir(), runtimeId))
 			// 同时也删除 uid 对应的任务
 			yakit.DelKey(p.db, uid)
 		}
