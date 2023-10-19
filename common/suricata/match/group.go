@@ -48,7 +48,8 @@ type Group struct {
 
 	consumeOnce *sync.Once
 
-	onMatchedCallback func(packet gopacket.Packet, match *rule.Rule)
+	onMatchedCallback  func(packet gopacket.Packet, match *rule.Rule)
+	onRuleLoadCallback func(r *rule.Rule) error
 
 	// control waitgroup
 	wg *sync.WaitGroup
@@ -95,6 +96,13 @@ func (g *Group) SetLoader(loader SuricataRuleLoaderType) {
 }
 
 func (g *Group) LoadRule(r *rule.Rule) {
+	if g.onRuleLoadCallback != nil {
+		if err := g.onRuleLoadCallback(r); err != nil {
+			log.Errorf("onRuleLoadCallback failed: %v", err)
+			return
+		}
+	}
+
 	matcher := New(r)
 	switch r.Protocol {
 	case "http":

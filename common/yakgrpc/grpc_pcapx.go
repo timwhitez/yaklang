@@ -8,6 +8,8 @@ import (
 	"github.com/yaklang/yaklang/common/consts"
 	"github.com/yaklang/yaklang/common/log"
 	"github.com/yaklang/yaklang/common/pcapx/pcaputil"
+	"github.com/yaklang/yaklang/common/suricata/match"
+	"github.com/yaklang/yaklang/common/suricata/rule"
 	"github.com/yaklang/yaklang/common/utils"
 	"github.com/yaklang/yaklang/common/utils/netutil"
 	"github.com/yaklang/yaklang/common/yakgrpc/yakit"
@@ -96,6 +98,17 @@ func (s *Server) PcapX(stream ypb.Yak_PcapXServer) error {
 	list := utils.StringArrayFilterEmpty(firstReq.GetNetInterfaceList())
 
 	storageManager := yakit.NewTrafficStorageManager(consts.GetGormProjectDatabase())
+
+	var suricataGroup = match.NewGroup(
+		match.WithGroupOnMatchedCallback(func(packet gopacket.Packet, match *rule.Rule) {
+			log.Infof("matched rule: %s", match.Message)
+		}),
+		match.WithOnRuleLoad(func(r *rule.Rule) error {
+			log.Infof("load rule: %s", r.Raw)
+			return nil
+		}),
+	)
+	_ = suricataGroup
 
 	// run pcap
 	err = pcaputil.Start(

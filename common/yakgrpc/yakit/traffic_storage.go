@@ -28,6 +28,9 @@ type TrafficStorageManager struct {
 	// arp: hash(device + req-ip + req-mac)
 	// dns: hash(id)
 	sessions *ttlcache.Cache // map[string]*TrafficSession
+
+	beforeSaveTraffic      func(*TrafficPacket) error
+	onCreateTrafficSession func(*TrafficSession) error
 }
 
 func getPacketPayload(packet gopacket.Packet) ([]byte, bool) {
@@ -264,10 +267,13 @@ func (m *TrafficStorageManager) FetchSession(hash string, packet gopacket.Packet
 		case "tcp", "tcp4", "udp", "udp4", "icmp", "icmp4", "icmpv4", "igmp", "icmp6", "icmpv6":
 			session.IsTcpIpStack = true
 		}
-
 		m.sessions.Set(hash, session)
 	}
 	return session, nil
+}
+
+func (m *TrafficStorageManager) SetOnCreateTrafficSession(f func(*TrafficSession) error) {
+	m.onCreateTrafficSession = f
 }
 
 func (m *TrafficStorageManager) CreateTCPReassembledFlow(flow *pcaputil.TrafficFlow) error {
@@ -377,15 +383,35 @@ func (m *TrafficStorageManager) SaveRawPacket(packet gopacket.Packet) error {
 			return err
 		}
 		trafficPacket.SessionUuid = session.Uuid
-		err = SaveTrafficSession(m.db, session)
-		if err != nil {
-			log.Errorf("save traffic session failed: %s", err)
+
+		var skipSessionSave = false
+		if m.onCreateTrafficSession != nil {
+			if err := m.onCreateTrafficSession(session); err != nil {
+				skipSessionSave = true
+				log.Errorf("onCreateTrafficSession failed: %v", err)
+			}
+		}
+		if !skipSessionSave {
+			err = SaveTrafficSession(m.db, session)
+			if err != nil {
+				log.Errorf("save traffic session failed: %s", err)
+			}
 		}
 	}
 
+	if m.beforeSaveTraffic != nil {
+		if err := m.beforeSaveTraffic(trafficPacket); err != nil {
+			log.Errorf("before save traffic packet failed: %s", err)
+			return err
+		}
+	}
 	if err := SaveTrafficPacket(m.db, trafficPacket); err != nil {
 		log.Errorf("save traffic packet failed: %s", err)
 		return err
 	}
 	return nil
+}
+
+func (m *TrafficStorageManager) SetBeforeSaveTraffic(f func(*TrafficPacket) error) {
+	m.beforeSaveTraffic = f
 }
