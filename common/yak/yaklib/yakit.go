@@ -102,6 +102,14 @@ func GetExtYakitLibByOutput(Output func(d any) error) map[string]interface{} {
 	}
 	return exports
 }
+func GetExtRiskLibByOutput(Output func(d any) error) map[string]interface{} {
+	var exports = map[string]interface{}{}
+	exports["NewRisk"] = func(target string, opts ...yakit.RiskParamsOpt) {
+		client := GetYakitClientInstance()
+		newRisk(client, Output, target, opts...)
+	}
+	return exports
+}
 func GetExtYakitLibByClient(client *YakitClient) map[string]interface{} {
 	var YakitExports = map[string]interface{}{
 		"Info":          client.YakitInfo,

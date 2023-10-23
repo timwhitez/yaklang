@@ -23,33 +23,43 @@ func addCounter() int {
 }
 func YakitNewRiskBuilder(client *YakitClient) func(target string, opts ...yakit.RiskParamsOpt) {
 	return func(target string, opts ...yakit.RiskParamsOpt) {
-		risk, _ := yakit.NewRisk(target, opts...)
-		if risk != nil {
-			if botClient == nil {
-				log.Info("start to create bot client")
-				client := bot.FromEnv()
-				if client != nil && len(client.Configs()) > 0 {
-					botClient = client
-				}
+		newRisk(client, nil, target, opts...)
+	}
+}
+
+func newRisk(client *YakitClient, out func(d any) error, target string, opts ...yakit.RiskParamsOpt) {
+	risk, _ := yakit.NewRisk(target, opts...)
+	if risk != nil {
+		if botClient == nil {
+			log.Info("start to create bot client")
+			client := bot.FromEnv()
+			if client != nil && len(client.Configs()) > 0 {
+				botClient = client
 			}
-			if botClient != nil {
-				title := risk.TitleVerbose
-				if title == "" {
-					title = risk.Title
-				}
-				log.Infof("use bot notify risk: %s", risk.Title)
-				botClient.SendMarkdown(fmt.Sprintf(`# Yakit 发现 Risks
+		}
+		if botClient != nil {
+			title := risk.TitleVerbose
+			if title == "" {
+				title = risk.Title
+			}
+			log.Infof("use bot notify risk: %s", risk.Title)
+			botClient.SendMarkdown(fmt.Sprintf(`# Yakit 发现 Risks
 
 风险标题：%v
 
 风险目标：%v
 
 `, title, risk.IP))
-			}
-			client.Output(&YakitStatusCard{
-				Id: "漏洞/风险/指纹", Data: fmt.Sprint(fmt.Sprint(addCounter())), Tags: nil,
-			})
-			client.Output(risk)
+		}
+		client.Output(&YakitStatusCard{
+			Id: "漏洞/风险/指纹", Data: fmt.Sprint(fmt.Sprint(addCounter())), Tags: nil,
+		})
+		client.Output(risk)
+		if out != nil {
+			risk.QuotedRequest = ""
+			risk.QuotedResponse = ""
+			risk.Details = ""
+			out(risk)
 		}
 	}
 }

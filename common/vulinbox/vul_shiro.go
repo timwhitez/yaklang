@@ -148,6 +148,11 @@ func (s *VulinServer) registerMockVulShiro() {
 			DefaultQuery: "",
 			Path:         "/shiro/cbc",
 			Title:        "Shiro CBC 默认KEY(<1.4.2)",
+			ExpectedResult: map[string]int{
+				"检测到 Shiro(Cookie) 框架使用": 1,
+				"(Shiro 默认 KEY)":         1,
+				"(Shiro Header 回显)":      1,
+			},
 			Handler: func(writer http.ResponseWriter, request *http.Request) {
 				failNow := func(writer http.ResponseWriter, request *http.Request, err error) {
 					cookie := http.Cookie{
@@ -198,6 +203,11 @@ func (s *VulinServer) registerMockVulShiro() {
 			DefaultQuery: "",
 			Path:         "/shiro/gcm",
 			Title:        "Shiro GCM 默认KEY(>=1.4.2)",
+			ExpectedResult: map[string]int{
+				"检测到 Shiro(Cookie) 框架使用": 1,
+				"(Shiro 默认 KEY)":         1,
+				"(Shiro Header 回显)":      1,
+			},
 			Handler: func(writer http.ResponseWriter, request *http.Request) {
 				failNow := func(writer http.ResponseWriter, request *http.Request, err error) {
 					cookie := http.Cookie{

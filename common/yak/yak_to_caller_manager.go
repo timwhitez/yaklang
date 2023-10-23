@@ -713,7 +713,7 @@ func BindYakitPluginContextToEngine(nIns *antlr4yak.Engine, pluginContext *Yakit
 		}
 		return i
 	})
-	nIns.GetVM().RegisterMapMemberCallHandler("risk", "NewRisk", func(i interface{}) interface{} {
+	nIns.GetVM().RegisterMapMemberCallHandler("risk", "newRisk", func(i interface{}) interface{} {
 		originFunc, ok := i.(func(target string, opts ...yakit.RiskParamsOpt))
 		if ok {
 			return func(target string, opts ...yakit.RiskParamsOpt) {
@@ -782,6 +782,24 @@ func (y *YakToCallerManager) AddForYakit(
 			})
 		})
 		engine.ImportSubLibs("yakit", yaklib.GetExtYakitLibByOutput(func(d any) error {
+			level, data := yaklib.MarshalYakitOutput(d)
+			yakitLog := &yaklib.YakitLog{
+				Level:     level,
+				Data:      data,
+				Timestamp: time.Now().Unix(),
+			}
+			raw, err := yaklib.YakitMessageGenerator(yakitLog)
+			if err != nil {
+				return err
+			}
+
+			result := &ypb.ExecResult{
+				IsMessage: true,
+				Message:   raw,
+			}
+			return caller(result)
+		}))
+		engine.ImportSubLibs("risk", yaklib.GetExtRiskLibByOutput(func(d any) error {
 			level, data := yaklib.MarshalYakitOutput(d)
 			yakitLog := &yaklib.YakitLog{
 				Level:     level,

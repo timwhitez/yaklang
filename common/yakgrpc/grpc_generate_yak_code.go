@@ -110,7 +110,7 @@ if YAK_MAIN {
             }
             yakit.Info("Matched for %v", target)
             # Save to RiskTable
-            risk.NewRisk(
+            risk.newRisk(
                 riskTarget, risk.severity("high"), risk.type("poc"),
                 risk.title("English Title"),            ## English Title for Risk
                 risk.titleVerbose("中文标题"),           ##  中文标题
@@ -192,7 +192,7 @@ if YAK_MAIN {
         }
         yakit.Info("Matched for %v", target)
         # Save to RiskTable
-        risk.NewRisk(
+        risk.newRisk(
             riskTarget, risk.severity("high"), risk.type("poc"),
             risk.title("English Title"),            ## English Title for Risk
             risk.titleVerbose("中文标题"),           ##  中文标题

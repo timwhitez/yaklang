@@ -14,9 +14,24 @@ defer manager.Wait()
 // 这个有必要设置：独立上下文，避免在大并发的时候出现问题
 manager.SetConcurrent(20)
 manager.SetDividedContext(true)
-//manager.SetFeedback(func(c){
-//    dump(c)
-//})
+
+realDetected = {}
+
+manager.SetFeedback(func(c){
+    message = c["Message"]
+    println("xxxxxxxxxxx "+string(message))
+    jRes = json.loads(message)
+    dump(jRes)
+    if jRes["content"]["level"] == "json-risk"{
+        data = jRes["content"]["data"]
+        jData = json.loads(data)
+        titleV = jData["TitleVerbose"]
+        url = jData["Url"]
+        if realDetected[url] == nil{
+            realDetected[url] = append(realDetected[url], titleV)
+        }
+    }
+})
 
 
 scriptNames = str.Split(scriptNameStr, ",")
@@ -31,7 +46,7 @@ x.Foreach(scriptNames, func(e){
 })
 
 
-rsp,err = http.Get("http://192.168.3.113:8787/vul/route?group=sql")
+rsp,err = http.Get("http://127.0.0.1:8787/vul/route?group=shiro")
 if err != nil {
     yakit.Error("http get error: %v", err)
     die(err)
@@ -39,7 +54,7 @@ if err != nil {
 groups = rsp.Json()
 
 
-packet = `GET /{{params(path)}} HTTP/1.1
+packet = `GET {{params(path)}} HTTP/1.1
 Host: {{params(target)}}
 `
 
@@ -54,7 +69,7 @@ yakit.EnableTable(tableName, [columnType, columnTarget, columnExpectedDetected,c
 
 
 for _, v := range groups[0].VulInfos {
-    path = str.TrimPrefix(v.Path + v.DefaultQuery,"/")
+    path = v.Path + v.DefaultQuery
     target = "127.0.0.1:8787"
     if v.ExpectedResult == nil {
         continue
@@ -69,19 +84,19 @@ for _, v := range groups[0].VulInfos {
     header, body = poc.Split(rsp)~
     manager.MirrorHTTPFlow(isHttps, u.String(), reqRaw, rsp, body)
 
-    for k, res := range v.ExpectedResult {
-        yakit.Output(
-         yakit.TableData(
-             tableName, {
-                 columnType:"sql" ,
-                 columnTarget: path,
-                 columnExpectedDetected: k,
-                 columnExpectedDetectedValue: res,
-                 columnRealDetected: "yes",
-                }
-            )
-        )
-    }
+    // for k, res := range v.ExpectedResult {
+    //         yakit.Output(
+    //          yakit.TableData(
+    //              tableName, {
+    //                  columnType:"sql" ,
+    //                  columnTarget: path,
+    //                  columnExpectedDetected: k,
+    //                  columnExpectedDetectedValue: res,
+    //                  columnRealDetected: "yes",
+    //                 }
+    //             )
+    //         )
+    //     }
 }
 
 
