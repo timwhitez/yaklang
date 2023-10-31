@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/md4"
 	"io"
 	"io/ioutil"
 	"log"
@@ -219,6 +220,14 @@ func GetFileMd5(filepath string) string {
 	md5Value = hex.EncodeToString(md5h.Sum([]byte("")))
 	f.Close()
 	return md5Value
+}
+
+func CalcMd4(items ...interface{}) string {
+	e := InterfaceToBytes(items[0])
+	md4New := md4.New()
+	md4New.Write(e)
+	md4Bytes := md4New.Sum(nil)
+	return hex.EncodeToString(md4Bytes[:])
 }
 
 func CalcMd5(items ...interface{}) string {
