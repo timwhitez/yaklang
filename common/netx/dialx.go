@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"github.com/yaklang/yaklang/common/gmsm/gmtls"
+	"github.com/yaklang/yaklang/common/gmsm/x509"
 	"github.com/yaklang/yaklang/common/log"
 	"github.com/yaklang/yaklang/common/utils"
+	"io/ioutil"
 	"net"
+	"net/http"
 	"sync/atomic"
 	"time"
 )
@@ -169,7 +172,8 @@ func DialX(target string, opt ...DialXOption) (net.Conn, error) {
 		} else if config.GMTLSPrefer {
 			strategies = []TLSStrategy{TLS_Strategy_GMDail, TLS_Strategy_Ordinary, TLS_Strategy_GMDial_Without_GMSupport}
 		} else {
-			strategies = []TLSStrategy{TLS_Strategy_Ordinary, TLS_Strategy_GMDail, TLS_Strategy_GMDial_Without_GMSupport}
+			//strategies = []TLSStrategy{TLS_Strategy_Ordinary, TLS_Strategy_GMDail, TLS_Strategy_GMDial_Without_GMSupport}
+			strategies = []TLSStrategy{TLS_Strategy_GMDail}
 		}
 	}
 
@@ -213,7 +217,11 @@ func DialX(target string, opt ...DialXOption) (net.Conn, error) {
 			return tlsConn, nil
 		case TLS_Strategy_GMDail:
 			if config.ShouldOverrideGMTLSConfig {
+				config.GMTLSConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+					return verifyPeerCerts(config.GMTLSConfig.RootCAs, config.GMTLSConfig.ServerName, rawCerts)
+				}
 				tlsConfig = config.GMTLSConfig
+
 			} else {
 				tlsConfig = &gmtls.Config{
 					GMSupport: &gmtls.GMSupport{
@@ -255,4 +263,50 @@ func DialX(target string, opt ...DialXOption) (net.Conn, error) {
 		return nil, utils.Errorf("all tls strategy failed: %v", errs)
 	}
 	return nil, utils.Error("unknown tls strategy error, BUG here!")
+}
+
+func verifyPeerCerts(rootCAs *x509.CertPool, serverName string, rawCerts [][]byte) error {
+	certs := make([]*x509.Certificate, len(rawCerts))
+	for i, asn1Data := range rawCerts {
+		cert, err := x509.ParseCertificate(asn1Data)
+		if err != nil {
+			return errors.New("failed to parse certificate from server: " + err.Error())
+		}
+		certs[i] = cert
+	}
+
+	opts := x509.VerifyOptions{
+		Roots:         rootCAs,
+		CurrentTime:   time.Now(),
+		DNSName:       serverName,
+		Intermediates: x509.NewCertPool(),
+	}
+	for _, cert := range certs[1:] {
+		opts.Intermediates.AddCert(cert)
+	}
+	_, err := certs[0].Verify(opts)
+	if err != nil {
+		if _, ok := err.(x509.UnknownAuthorityError); ok {
+			lastCert := certs[len(certs)-1]
+			if len(lastCert.IssuingCertificateURL) >= 1 && lastCert.IssuingCertificateURL[0] != "" {
+				resp, err := http.Get(lastCert.IssuingCertificateURL[0])
+				if resp != nil {
+					defer resp.Body.Close()
+				}
+				if err != nil {
+					return err
+				}
+
+				data, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					return err
+				}
+
+				rawCerts = append(rawCerts, data)
+				return verifyPeerCerts(rootCAs, serverName, rawCerts)
+			}
+		}
+		return err
+	}
+	return nil
 }

@@ -8,8 +8,10 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"github.com/pkg/errors"
+	"github.com/yaklang/yaklang/common/log"
 	"github.com/yaklang/yaklang/common/utils"
 	"github.com/yaklang/yaklang/common/yak/yaklib/codec"
 	"reflect"
@@ -131,6 +133,7 @@ func GeneratePrivateAndPublicKeyPEMWithPrivateFormatterWithSize(t string, size i
 func PemPkcs1v15Encrypt(pemBytes []byte, data interface{}) ([]byte, error) {
 	dataBytes := utils.InterfaceToBytes(data)
 	block, _ := pem.Decode(pemBytes)
+	log.Infof("pem decode: %s", hex.EncodeToString(block.Bytes))
 	if block == nil {
 		return nil, errors.Wrap(errors.New("empty pem block"), "pem decode public key failed")
 	}
