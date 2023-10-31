@@ -230,9 +230,11 @@ func (ka *ecdheKeyAgreementGM) processServerKeyExchange(config *Config, clientHe
 		return errServerKeyExchange
 	}
 
-	var signatureAlgorithm SignatureScheme
+	signatureAlgorithm := SignatureScheme(x509.SM2WithSM3)
 	_, sigType, hashFunc, err := pickSignatureAlgorithm(cert.PublicKey, []SignatureScheme{signatureAlgorithm}, clientHello.supportedSignatureAlgorithms, ka.version)
-
+	if err != nil {
+		return err
+	}
 	sigLen := int(sig[0])<<8 | int(sig[1])
 	if sigLen+2 != len(sig) {
 		return errServerKeyExchange

@@ -234,7 +234,7 @@ func DialX(target string, opt ...DialXOption) (net.Conn, error) {
 					Renegotiation:      gmtls.RenegotiateFreelyAsClient,
 				}
 			}
-			tlsConn, err := UpgradeToTLSConnectionWithTimeout(conn, sni, tlsConfig, tlsTimeout, config.TLSNextProto...)
+			tlsConn, err := UpgradeToTLSConnectionWithTimeout(conn, sni, tlsConfig, 15*time.Minute, config.TLSNextProto...)
 			if err != nil {
 				errs = append(errs, err)
 				continue
