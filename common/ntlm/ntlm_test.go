@@ -1,6 +1,8 @@
 package ntlm
 
 import (
+	"encoding/hex"
+	"fmt"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/yaklang/yaklang/common/utils"
 	"testing"
@@ -23,4 +25,10 @@ func TestToUnicode(t *testing.T) {
 	spew.Dump(a)
 	b := utils.CalcMd4(a)
 	spew.Dump(b)
+}
+
+func TestNegotiate(t *testing.T) {
+	message, _ := NewNegotiateMessageDefault("DOMAIN", "WORKSTATION")
+	fmt.Println(string(message))
+	fmt.Println(hex.EncodeToString(message))
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"github.com/yaklang/yaklang/common/utils"
 	"github.com/yaklang/yaklang/common/yak/yaklib/codec"
 	"strconv"
@@ -24,6 +25,18 @@ func toUnicode(s string) []byte {
 	b := bytes.Buffer{}
 	binary.Write(&b, binary.LittleEndian, &uints)
 	return b.Bytes()
+}
+
+func fromUnicode(d []byte) (string, error) {
+	if len(d)%2 > 0 {
+		return "", errors.New("Unicode (UTF 16 LE) specified, but uneven data length")
+	}
+	s := make([]uint16, len(d)/2)
+	err := binary.Read(bytes.NewReader(d), binary.LittleEndian, &s)
+	if err != nil {
+		return "", err
+	}
+	return string(utf16.Decode(s)), nil
 }
 
 func GetLMHash(password string) []byte { // lm hash
