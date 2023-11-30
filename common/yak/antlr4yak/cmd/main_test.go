@@ -12,16 +12,10 @@ import (
 	"github.com/yaklang/yaklang/common/yak/antlr4yak/yakvm"
 )
 
-func Encode(flag []byte) {
-	for i, v := range flag {
-		if i%2 == 0 {
-			v = v ^ 0xf0
-		} else {
-			v = v ^ 0x0f
-		}
-		v = v ^ byte(2*i)
-		flag[i] = v
-	}
+func TestGetFlag(t *testing.T) {
+	L1 := []byte{137, 108, 159, 114, 185, 90, 174, 68, 160, 81, 179, 41, 186, 89, 168, 78, 229, 121, 149, 106, 147, 103, 156, 114, 133, 98, 146, 116, 181}
+	Decode(L1)
+	fmt.Println(string(L1))
 }
 
 func Decode(flag []byte) {
@@ -36,6 +30,18 @@ func Decode(flag []byte) {
 	}
 }
 
+func Encode(flag []byte) {
+	for i, v := range flag {
+		if i%2 == 0 {
+			v = v ^ 0xf0
+		} else {
+			v = v ^ 0x0f
+		}
+		v = v ^ byte(2*i)
+		flag[i] = v
+	}
+}
+
 func TestReverse(t *testing.T) {
 	bytes, err := os.ReadFile("./marshalCode")
 	if err != nil {
@@ -43,48 +49,48 @@ func TestReverse(t *testing.T) {
 	}
 
 	m := yakvm.NewCodesMarshaller()
-	table, code, err := m.Unmarshal(bytes)
+	_, code, err := m.Unmarshal(bytes)
 	if err != nil {
 		panic("unmarshal error")
 	}
 
 	yakvm.ShowOpcodes(code)
 
-	// run
-	vm := yakvm.NewWithSymbolTable(table)
-	vm.SetVar("print", func(arg ...interface{}) {
-		fmt.Println(arg)
-	})
-	vm.SetVar("println", func() {
-		fmt.Println("println")
-	})
+	// // run
+	// vm := yakvm.NewWithSymbolTable(table)
+	// vm.SetVar("print", func(arg ...interface{}) {
+	// 	fmt.Println(arg)
+	// })
+	// vm.SetVar("println", func() {
+	// 	fmt.Println("println")
+	// })
 
-	vm.SetVar("get", func() {
-		fmt.Println("get")
-	})
+	// vm.SetVar("get", func() {
+	// 	fmt.Println("get")
+	// })
 
-	vm.SetVar("string2int", func() {
-		fmt.Println("string2int")
-	})
+	// vm.SetVar("string2int", func() {
+	// 	fmt.Println("string2int")
+	// })
 
-	vm.SetVar("len", func() {
-		fmt.Println("len")
-	})
+	// vm.SetVar("len", func() {
+	// 	fmt.Println("len")
+	// })
 
 	// vm.Exec(context.Background(), func(frame *yakvm.Frame) {
 	// 	frame.NormalExec(code)
 	// })
 }
 
-func TestCheckFlag(t *testing.T) {
-	flag := []byte("flag{aaaaaaaaaaaaaaaaa}")
-	fmt.Println(flag)
-	Encode(flag)
-	fmt.Println("encode:", flag)
-	Decode(flag)
-	fmt.Println(flag)
-	fmt.Println(string(flag))
-}
+// func TestCheckFlag(t *testing.T) {
+// 	flag := []byte("flag{aaaaaaaaaaaaaaaaa}")
+// 	fmt.Println(flag)
+// 	Encode(flag)
+// 	fmt.Println("encode:", flag)
+// 	Decode(flag)
+// 	fmt.Println(flag)
+// 	fmt.Println(string(flag))
+// }
 
 func TestCompile(t *testing.T) {
 	flag := []byte("yak{A_RE@LW0RLD_5TACKB@SE_VM}")
