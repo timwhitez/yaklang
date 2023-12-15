@@ -464,6 +464,12 @@ func (s *Server) MITM(stream ypb.Yak_MITMServer) error {
 	}
 	go func() {
 		for {
+			select {
+			case <-ctx.Done():
+				controller.clear()
+				return
+			default:
+			}
 			waitNewHijackTask()
 			controller.currentTask = controller.nextTask()
 			if controller.currentTask == "" {
