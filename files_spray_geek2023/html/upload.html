@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Form</title>
+    <!-- Add Bootstrap CSS -->
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css">
+    <style>
+        /* 定义滚动条的样式 (Chrome, Safari) */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        .scrollable-container {
+            height: 500px;  /* 你可以根据需要调整这个值 */
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+<div class="container mt-5">
+    <div class="alert alert-info">管理员为了保护 flag 不被发现，将密码设置为4 个文件内容相连....</div>
+    <div class="alert alert-info">文件系统每隔一段时间会清空文件...</div>
+
+    <div id="warning" class="alert alert-danger d-none">Please select a file before uploading.</div>
+
+    <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data"
+          class="form-group">
+        <div class="custom-file mb-3">
+            <input type="file" class="custom-file-input" id="customFile" name="filename">
+            <label class="custom-file-label" for="customFile">Choose file</label>
+        </div>
+        <input type="hidden" name="yak-token" placeholder="csrf token 10 秒失效，手速要快哦 ^_^" value="%s">
+        <input type="submit" value="upload" class="btn btn-primary">
+    </form>
+    <div class="container scrollable-container">
+        <table id="fileList" class="table table-striped">
+            <thead>
+            <tr>
+                <th>缓存文件名</th>
+                <th>保存文件名</th>
+                <th>文件大小 (bytes)</th>
+                <th>创建时间</th>
+            </tr>
+            </thead>
+            <tbody>
+            <!-- 文件将会被添加到这里 -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Bootstrap JS and dependencies -->
+<script src="/static/js/jquery-3.5.1.js"></script>
+
+<script>
+    // $(document).ready(function () {
+    $('#customFile').on('change', function () {
+        // 获取文件名
+        var fileName = $(this).val().split('\\').pop();
+
+        // // 检查文件后缀
+        // var fileExtension = fileName.split('.').pop().toLowerCase();
+        // var allowedExtensions = 'zip'; // 允许的文件后缀名
+        // if (fileExtension !== allowedExtensions) {
+        //     $('#warning').removeClass('d-none').text('Invalid file type. Only zip are allowed.');
+        //     $(this).val(''); // 清除选中的文件
+        //     $(this).next('.custom-file-label').html('Choose file');
+        //     return;
+        // }
+
+        // 替换 label 文本
+        $(this).next('.custom-file-label').html(fileName);
+        $('#warning').addClass('d-none');
+    });
+
+
+    getFiles = function () {
+        fetch('/file-list')
+            .then(response => {
+                // 如果状态码不是 200，清空表格的内容，然后抛出错误
+                if (response.status !== 200) {
+                    const tbody = document.querySelector('#fileList tbody');
+                    tbody.innerHTML = '';
+                    throw new Error('Server responded with status: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(fileList => {
+                const tbody = document.querySelector('#fileList tbody');
+                tbody.innerHTML = ''; // 清空 <tbody> 元素的内容
+                fileList.forEach(fileInfo => {
+                    const tr = document.createElement('tr');
+
+                    const tdCname = document.createElement('td');
+                    tdCname.textContent = fileInfo.cname;
+                    tr.appendChild(tdCname);
+
+                    const tdName = document.createElement('td');
+                    tdName.textContent = fileInfo.name;
+                    tr.appendChild(tdName);
+
+                    const tdSize = document.createElement('td');
+                    tdSize.textContent = fileInfo.size;
+                    tr.appendChild(tdSize);
+
+                    const tdTime = document.createElement('td');
+                    tdTime.textContent = fileInfo.time;
+                    tr.appendChild(tdTime);
+
+                    tbody.appendChild(tr);
+                });
+            })
+            .catch(error => {
+                // 如果有错误，打印错误信息
+                console.error('Error:', error);
+            });
+    }
+    // 创建一个定时器，每隔 30 秒执行一次 getFiles 函数
+    setInterval(getFiles, 30000);
+
+    $('#uploadForm').on('submit', function (e) {
+        e.preventDefault();
+
+        // 检查是否选择了文件
+        if ($('#customFile').val() === '') {
+            $('#warning').removeClass('d-none').text('Please select a file before uploading.');
+            return;
+        }
+
+        // 在提交表单之前，立即获取和设置新的 CSRF 令牌
+        fetch('/new-csrf-token')
+            .then(response => {
+                // 如果状态码是 401，重定向到 '/'
+                if (response.status === 401) {
+                    window.alert('会话超时了');
+                    window.location.href = '/';
+                    throw 'Unauthorized';  // 抛出错误，阻止后续的 then 链执行
+                }
+                return response.text();
+            })
+            .then(newToken => {
+                // 用新的令牌替换旧的令牌
+                document.querySelector('input[name="yak-token"]').value = newToken;
+
+                // 使用 AJAX 提交表单
+                // 使用 AJAX 提交表单
+                $.ajax({
+                    url: $(this).attr('action'),
+                    type: 'post',
+                    data: new FormData(this),
+                    processData: false,
+                    contentType: false,
+                    success: function (data) {
+                        // 处理成功后的操作
+                        console.log('File uploaded successfully.');
+
+                        // 执行 getFiles 函数
+                        getFiles();
+
+                        // 清空文件输入
+                        $('#customFile').val('');
+                        $('.custom-file-label').html('Choose file');
+                    },
+                    error: function (data) {
+                        // 处理失败后的操作
+                        console.log('Error occurred while uploading file.');
+
+                        // 清空文件输入
+                        $('#customFile').val('');
+                        $('.custom-file-label').html('Choose file');
+                    }
+                });
+            });
+    });
+
+    window.onload = getFiles;
+    // 创建一个定时器，每隔 29 秒执行一次 getFiles 函数
+</script>
+</body>
+</html>
