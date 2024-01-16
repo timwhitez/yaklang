@@ -26,9 +26,6 @@ type YaklangParserVisitor interface {
 	// Visit a parse tree produced by YaklangParser#assignExpressionStmt.
 	VisitAssignExpressionStmt(ctx *AssignExpressionStmtContext) interface{}
 
-	// Visit a parse tree produced by YaklangParser#lineCommentStmt.
-	VisitLineCommentStmt(ctx *LineCommentStmtContext) interface{}
-
 	// Visit a parse tree produced by YaklangParser#includeStmt.
 	VisitIncludeStmt(ctx *IncludeStmtContext) interface{}
 

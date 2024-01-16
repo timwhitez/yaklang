@@ -32,10 +32,6 @@ func (v *BaseYaklangParserVisitor) VisitAssignExpressionStmt(ctx *AssignExpressi
 	return v.VisitChildren(ctx)
 }
 
-func (v *BaseYaklangParserVisitor) VisitLineCommentStmt(ctx *LineCommentStmtContext) interface{} {
-	return v.VisitChildren(ctx)
-}
-
 func (v *BaseYaklangParserVisitor) VisitIncludeStmt(ctx *IncludeStmtContext) interface{} {
 	return v.VisitChildren(ctx)
 }

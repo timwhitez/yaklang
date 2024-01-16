@@ -16,10 +16,9 @@ statementList: (statement )+;
 // 语句的构成也并不复杂
 statement
     // 基本语句
-    : lineCommentStmt eos
-
+    :
     // 声明变量的优先级比表达式高，这个规则匹配应该是 var a,d,b,c 只能支持 Var，特殊语法
-    | declareVariableExpressionStmt eos
+    declareVariableExpressionStmt eos
 
     // var(...) 或者 var 单独使用，作为类型，expression 是右值
     | assignExpressionStmt eos
@@ -48,7 +47,6 @@ tryStmt: 'try' block 'catch' Identifier? block ('finally' block)?;
 
 expressionStmt: expression;
 assignExpressionStmt: assignExpression;
-lineCommentStmt: (LINE_COMMENT | COMMENT);
 
 includeStmt: 'include' StringLiteral;
 deferStmt: 'defer' expression;
@@ -311,13 +309,11 @@ mapTypedLiteral
 mapPairs: mapPair (',' ws* mapPair)* ','?;
 mapPair: expression ':' expression;
 
-ws: (LF | COMMENT | LINE_COMMENT) +;
+ws: LF +;
 
 // end of statement
 eos
     : ';'
     | LF +
-    | COMMENT
-    | LINE_COMMENT
     | { this.closingBracket() }?
     ;

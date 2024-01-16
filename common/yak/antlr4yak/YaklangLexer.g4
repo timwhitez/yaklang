@@ -116,10 +116,10 @@ WS: [ \t\r]+ -> skip;
 CommentStart: '/*';
 CommentEnd: '*/';
 BackTickL: '`';
-COMMENT: '/*' .*? '*/';
+COMMENT: '/*' .*? '*/' -> channel(HIDDEN);
 
 // 定义按行的评论/注释
-LINE_COMMENT         : ('//' | '#') ~[\r\n]*;
+LINE_COMMENT         : ('//' | '#') ~[\r\n]* -> channel(HIDDEN);
 
 LF: '\n';
 
@@ -136,6 +136,7 @@ EOS: ( ';' | '/*' .*? '*/' | EOF);
 */
 IntegerLiteral
     : DecimalIntegerLiteral
+    | OctalIntegerLiteral
     | OctalIntegerLiteral
     | HexIntegerLiteral
     | BinaryIntegerLiteral
