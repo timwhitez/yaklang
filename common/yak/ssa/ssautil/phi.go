@@ -80,13 +80,15 @@ func (s *ScopedVersionedTable[T]) CoverByChild() {
 	s.child = make([]*ScopedVersionedTable[T], 0)
 }
 
+// Merge merge the sub-scope to current scope,
+// if hasSelf is true: the current scope will be merged to the result
 func (s *ScopedVersionedTable[T]) Merge(hasSelf bool, handler func(name string, t []T) T) {
 	var zero T
 	subScopes := s.child
 	// handler []T must sort same with sub-scope
 	length := len(subScopes)
 	if hasSelf {
-		length += 1
+		length++
 	}
 	tmp := make(map[string][]T)
 	for index, sub := range subScopes {

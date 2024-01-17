@@ -27,20 +27,6 @@ func BuildSyntaxBlock[T comparable](
 	return false
 }
 
-// IfStmtItem represents an item in an IfStmt.
-type IfStmtItem[T comparable] struct {
-	Condition func(*ScopedVersionedTable[T])
-	Body      func(*ScopedVersionedTable[T])
-}
-
-// NewIfStmtItem creates a new IfStmtItem with the given condition and body functions.
-func NewIfStmtItem[T comparable](c func(*ScopedVersionedTable[T]), b func(*ScopedVersionedTable[T])) *IfStmtItem[T] {
-	return &IfStmtItem[T]{
-		Condition: c,
-		Body:      b,
-	}
-}
-
 // IfStmt represents an if statement.
 type IfStmt[T comparable] struct {
 	global         *ScopedVersionedTable[T]
@@ -49,6 +35,17 @@ type IfStmt[T comparable] struct {
 }
 
 // NewIfStmt creates a new IfStmt with the given global scope.
+/*
+	IfStmt will handle if-stmt scope.
+	API:
+		* BuildItem(condition fun(scope), body func(scope)):
+			build if item using the provided Condition and Body functions.
+		* BuildElse(elseBody func(scope)):
+			set the else function for the IfStmt.
+		* BuildFinish(mergeHandler func(name string, t []T) T):
+			build the IfStmt finish, using the provided mergeHandler function create Phi.
+	IfStmt will build this scope when this method call
+*/
 func NewIfStmt[T comparable](global *ScopedVersionedTable[T]) *IfStmt[T] {
 	condition := global.CreateSubScope()
 	return &IfStmt[T]{
@@ -58,7 +55,7 @@ func NewIfStmt[T comparable](global *ScopedVersionedTable[T]) *IfStmt[T] {
 	}
 }
 
-// AddItem adds an item to the IfStmt.
+// BuildItem build the if item using the provided Condition and Body functions.
 func (i *IfStmt[T]) BuildItem(Condition func(*ScopedVersionedTable[T]), Body func(*ScopedVersionedTable[T])) {
 	if i.hasElse {
 		panic("cannot add item after else")
