@@ -5,6 +5,7 @@ import (
 
 	"github.com/yaklang/yaklang/common/utils"
 	"github.com/yaklang/yaklang/common/utils/omap"
+	"github.com/yaklang/yaklang/common/yak/ssa/ssautil"
 	"golang.org/x/exp/slices"
 )
 
@@ -37,8 +38,8 @@ type Instruction interface {
 	SetRange(*Range)
 
 	// Scope
-	SetScope(*Scope)
-	GetScope() *Scope
+	// SetScope(*Scope)
+	// GetScope() *Scope
 
 	// extern
 	IsExtern() bool
@@ -102,7 +103,7 @@ type anInstruction struct {
 	fun   *Function
 	block *BasicBlock
 	R     *Range
-	scope *Scope
+	// scope *Scope
 
 	name string
 	id   int
@@ -160,8 +161,8 @@ func (c *anInstruction) NewError(kind ErrorKind, tag ErrorTag, msg string) {
 }
 
 // symbol-table
-func (a *anInstruction) GetScope() *Scope  { return a.scope }
-func (a *anInstruction) SetScope(s *Scope) { a.scope = s }
+// func (a *anInstruction) GetScope() *Scope  { return a.scope }
+// func (a *anInstruction) SetScope(s *Scope) { a.scope = s }
 
 // variable
 func (a *anInstruction) SetName(v string) { a.name = v }
@@ -332,6 +333,7 @@ type BasicBlock struct {
 
 	// for build
 	symbolTable   map[string]Values
+	ScopeTable    *ssautil.ScopedVersionedTable[*Variable]
 	finish        bool // if emitJump finish!
 	isSealed      bool
 	inCompletePhi []*Phi // variable -> phi

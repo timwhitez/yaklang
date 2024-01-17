@@ -152,17 +152,17 @@ func (i *Value) getTopDefs(actx *AnalyzeContext) Values {
 			if ret.IsFreeValue {
 				// free value
 				// fetch parent
-				fun := ret.GetFunc().GetParent() // func.parent
-				for _, va := range fun.GetValuesByName(ret.GetName()) {
-					_, isSideEffect := va.(*ssa.SideEffect)
-					if isSideEffect {
-						continue
-					}
+				// fun := ret.GetFunc().GetParent() // func.parent
+				// for _, va := range fun.GetValuesByName(ret.GetName()) {
+				// 	_, isSideEffect := va.(*ssa.SideEffect)
+				// 	if isSideEffect {
+				// 		continue
+				// 	}
 
-					if ret := NewValue(va).SetParent(i).getTopDefs(actx); len(ret) > 0 {
-						vals = append(vals, ret...)
-					}
-				}
+				// 	if ret := NewValue(va).SetParent(i).getTopDefs(actx); len(ret) > 0 {
+				// 		vals = append(vals, ret...)
+				// 	}
+				// }
 			}
 			if len(vals) <= 0 {
 				return Values{i}
