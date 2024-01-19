@@ -124,8 +124,8 @@ func FetchFunctionFromSourceCode(ctx context.Context, pluginContext *YakitPlugin
 		if id != "" {
 			pluginContext.PluginName = id
 		}
+		pluginContext.Ctx = ctx
 		BindYakitPluginContextToEngine(engine, pluginContext)
-		HookEngineContext(engine, ctx)
 		return nil
 	})
 	engine.HookOsExit()
@@ -527,6 +527,7 @@ type YakitPluginContext struct {
 	PluginName string
 	RuntimeId  string
 	Proxy      string
+	Ctx        context.Context
 }
 
 func BindYakitPluginContextToEngine(nIns *antlr4yak.Engine, pluginContext *YakitPluginContext) {
@@ -536,6 +537,7 @@ func BindYakitPluginContextToEngine(nIns *antlr4yak.Engine, pluginContext *Yakit
 	var pluginName string
 	var runtimeId string
 	var proxy string
+	var streamContext = context.Background()
 	if pluginContext == nil {
 		return
 	}
@@ -543,6 +545,9 @@ func BindYakitPluginContextToEngine(nIns *antlr4yak.Engine, pluginContext *Yakit
 	runtimeId = pluginContext.RuntimeId
 	pluginName = pluginContext.PluginName
 	proxy = pluginContext.Proxy
+	if pluginContext.Ctx != nil {
+		streamContext = pluginContext.Ctx
+	}
 	// inject meta vars
 	for _, method := range []string{
 		"Get", "Post",
@@ -703,6 +708,7 @@ func BindYakitPluginContextToEngine(nIns *antlr4yak.Engine, pluginContext *Yakit
 		originFunc, ok := i.(func(interface{}, ...mutate.BuildFuzzHTTPRequestOption) (*mutate.FuzzHTTPRequest, error))
 		if ok {
 			return func(i interface{}, opts ...mutate.BuildFuzzHTTPRequestOption) (*mutate.FuzzHTTPRequest, error) {
+				opts = append([]mutate.BuildFuzzHTTPRequestOption{mutate.OptContext(pluginContext.Ctx)}, opts...)
 				opts = append(opts, mutate.OptSource(pluginName))
 				if runtimeId != "" {
 					opts = append(opts, mutate.OptRuntimeId(runtimeId))
@@ -717,6 +723,7 @@ func BindYakitPluginContextToEngine(nIns *antlr4yak.Engine, pluginContext *Yakit
 		originFunc, ok := i.(func(interface{}, ...mutate.BuildFuzzHTTPRequestOption) *mutate.FuzzHTTPRequest)
 		if ok {
 			return func(i interface{}, opts ...mutate.BuildFuzzHTTPRequestOption) *mutate.FuzzHTTPRequest {
+				opts = append([]mutate.BuildFuzzHTTPRequestOption{mutate.OptContext(pluginContext.Ctx)}, opts...)
 				opts = append(opts, mutate.OptSource(pluginName))
 				opts = append(opts, mutate.OptProxy(proxy))
 				if runtimeId != "" {
@@ -783,11 +790,8 @@ func BindYakitPluginContextToEngine(nIns *antlr4yak.Engine, pluginContext *Yakit
 		}
 		return i
 	})
-}
-
-func HookEngineContext(engine *antlr4yak.Engine, streamContext context.Context) {
 	streamContext, cancel := context.WithCancel(streamContext)
-	engine.GetVM().RegisterMapMemberCallHandler("context", "Seconds", func(f interface{}) interface{} {
+	nIns.GetVM().RegisterMapMemberCallHandler("context", "Seconds", func(f interface{}) interface{} {
 		funcValue := reflect.ValueOf(f)
 		funcType := funcValue.Type()
 		hookFunc := reflect.MakeFunc(funcType, func(args []reflect.Value) (results []reflect.Value) {
@@ -806,11 +810,11 @@ func HookEngineContext(engine *antlr4yak.Engine, streamContext context.Context) 
 			return streamContext
 		}
 	}
-	engine.GetVM().RegisterMapMemberCallHandler("context", "New", newContextHook)
-	engine.GetVM().RegisterMapMemberCallHandler("context", "Background", newContextHook)
+	nIns.GetVM().RegisterMapMemberCallHandler("context", "New", newContextHook)
+	nIns.GetVM().RegisterMapMemberCallHandler("context", "Background", newContextHook)
 
 	// hook httpserver context
-	engine.GetVM().RegisterMapMemberCallHandler("httpserver", "Serve", func(f interface{}) interface{} {
+	nIns.GetVM().RegisterMapMemberCallHandler("httpserver", "Serve", func(f interface{}) interface{} {
 		originFunc, ok := f.(func(host string, port int, opts ...yaklib.HttpServerConfigOpt) error)
 		if ok {
 			return func(host string, port int, opts ...yaklib.HttpServerConfigOpt) error {
@@ -822,7 +826,7 @@ func HookEngineContext(engine *antlr4yak.Engine, streamContext context.Context) 
 	})
 
 	// hook traceroute context
-	engine.GetVM().RegisterMapMemberCallHandler("traceroute", "Diagnostic", func(f interface{}) interface{} {
+	nIns.GetVM().RegisterMapMemberCallHandler("traceroute", "Diagnostic", func(f interface{}) interface{} {
 		originFunc, ok := f.(func(host string, opts ...pingutil.TracerouteConfigOption) (chan *pingutil.TracerouteResponse, error))
 		if ok {
 			return func(host string, opts ...pingutil.TracerouteConfigOption) (chan *pingutil.TracerouteResponse, error) {
@@ -834,7 +838,7 @@ func HookEngineContext(engine *antlr4yak.Engine, streamContext context.Context) 
 	})
 
 	// hook udp context
-	engine.GetVM().RegisterMapMemberCallHandler("udp", "Serve", func(f interface{}) interface{} {
+	nIns.GetVM().RegisterMapMemberCallHandler("udp", "Serve", func(f interface{}) interface{} {
 		originFunc, ok := f.(func(host string, port interface{}, opts ...yaklib.UdpServerOpt) error)
 		if ok {
 			return func(host string, port interface{}, opts ...yaklib.UdpServerOpt) error {
@@ -846,7 +850,7 @@ func HookEngineContext(engine *antlr4yak.Engine, streamContext context.Context) 
 	})
 
 	// hook tcp context
-	engine.GetVM().RegisterMapMemberCallHandler("tcp", "Serve", func(f interface{}) interface{} {
+	nIns.GetVM().RegisterMapMemberCallHandler("tcp", "Serve", func(f interface{}) interface{} {
 		originFunc, ok := f.(func(host interface{}, port int, opts ...yaklib.TcpServerConfigOpt) error)
 		if ok {
 			return func(host interface{}, port int, opts ...yaklib.TcpServerConfigOpt) error {
@@ -858,7 +862,7 @@ func HookEngineContext(engine *antlr4yak.Engine, streamContext context.Context) 
 	})
 
 	// hook mitm start context
-	engine.GetVM().RegisterMapMemberCallHandler("mitm", "Start", func(f interface{}) interface{} {
+	nIns.GetVM().RegisterMapMemberCallHandler("mitm", "Start", func(f interface{}) interface{} {
 		originFunc, ok := f.(func(port int, opts ...yaklib.MitmConfigOpt) error)
 		if ok {
 			return func(port int, opts ...yaklib.MitmConfigOpt) error {
@@ -868,7 +872,7 @@ func HookEngineContext(engine *antlr4yak.Engine, streamContext context.Context) 
 		}
 		return f
 	})
-	engine.GetVM().RegisterMapMemberCallHandler("mitm", "Bridge", func(f interface{}) interface{} {
+	nIns.GetVM().RegisterMapMemberCallHandler("mitm", "Bridge", func(f interface{}) interface{} {
 		originFunc, ok := f.(func(port interface{}, downstreamProxy string, opts ...yaklib.MitmConfigOpt) error)
 		if ok {
 			return func(port interface{}, downstreamProxy string, opts ...yaklib.MitmConfigOpt) error {
@@ -902,33 +906,11 @@ func HookEngineContext(engine *antlr4yak.Engine, streamContext context.Context) 
 	}
 	gitFuncList := []string{"GitHack", "Clone", "Pull", "Fetch", "Checkout", "IterateCommit"}
 	for _, funcName := range gitFuncList {
-		engine.GetVM().RegisterMapMemberCallHandler("git", funcName, hookGitFunc)
+		nIns.GetVM().RegisterMapMemberCallHandler("git", funcName, hookGitFunc)
 	}
 
-	// hook fuzz context
-	engine.GetVM().RegisterMapMemberCallHandler("fuzz", "HTTPRequest", func(f interface{}) interface{} {
-		originFunc, ok := f.(func(i interface{}, opts ...mutate.BuildFuzzHTTPRequestOption) (*mutate.FuzzHTTPRequest, error))
-		if ok {
-			return func(i interface{}, opts ...mutate.BuildFuzzHTTPRequestOption) (*mutate.FuzzHTTPRequest, error) {
-				opts = append([]mutate.BuildFuzzHTTPRequestOption{mutate.OptContext(streamContext)}, opts...)
-				return originFunc(i, opts...)
-			}
-		}
-		return f
-	})
-	engine.GetVM().RegisterMapMemberCallHandler("fuzz", "MustHTTPRequest", func(f interface{}) interface{} {
-		originFunc, ok := f.(func(i interface{}, opts ...mutate.BuildFuzzHTTPRequestOption) *mutate.FuzzHTTPRequest)
-		if ok {
-			return func(i interface{}, opts ...mutate.BuildFuzzHTTPRequestOption) *mutate.FuzzHTTPRequest {
-				opts = append([]mutate.BuildFuzzHTTPRequestOption{mutate.OptContext(streamContext)}, opts...)
-				return originFunc(i, opts...)
-			}
-		}
-		return f
-	})
-
 	// hook http_pool context
-	engine.GetVM().RegisterMapMemberCallHandler("httpool", "Pool", func(f interface{}) interface{} {
+	nIns.GetVM().RegisterMapMemberCallHandler("httpool", "Pool", func(f interface{}) interface{} {
 		originFunc, ok := f.(func(i interface{}, opts ...mutate.HttpPoolConfigOption) (chan *mutate.HttpResult, error))
 		if ok {
 			return func(i interface{}, opts ...mutate.HttpPoolConfigOption) (chan *mutate.HttpResult, error) {
@@ -940,14 +922,14 @@ func HookEngineContext(engine *antlr4yak.Engine, streamContext context.Context) 
 	})
 
 	// os.
-	engine.GetVM().RegisterMapMemberCallHandler("os", "Exit", func(f interface{}) interface{} {
+	nIns.GetVM().RegisterMapMemberCallHandler("os", "Exit", func(f interface{}) interface{} {
 		return func(code int) {
 			cancel()
 		}
 	})
 
 	// hook cli os.exit
-	engine.GetVM().RegisterMapMemberCallHandler("cli", "check", func(f interface{}) interface{} {
+	nIns.GetVM().RegisterMapMemberCallHandler("cli", "check", func(f interface{}) interface{} {
 		return cli.CliCheckWithContext(cancel)
 	})
 }
